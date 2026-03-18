@@ -1,5 +1,23 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import { MEMBERS, BOOKS as INITIAL_BOOKS, type Book, type Member } from "@/data/library-data";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
+export type BookStatus = 'available' | 'borrowed' | 'reserved' | 'kiosk';
+
+export interface Book {
+  id: string;
+  title: string;
+  author: string;
+  rfid_tag: string;
+  status: BookStatus;
+  due_date: string | null;
+}
+
+export interface Member {
+  id: string;
+  uni_id: string;
+  name: string;
+  borrowed: string[];
+}
 
 interface LibraryContextType {
   currentUser: Member | null;
@@ -7,30 +25,73 @@ interface LibraryContextType {
   reserveSeconds: number;
   hasActiveReservation: boolean;
   reservedBookTitle: string;
-  login: (id: string, password: string) => string | null;
+  login: (uniId: string, password: string) => Promise<string | null>;
   logout: () => void;
   searchBooks: (query: string, type: "title" | "author") => Book[];
   getMyBooks: () => Book[];
-  reserveBook: (bookId: string) => void;
+  reserveBook: (bookId: string) => Promise<void>;
   startTimer: () => void;
   stopTimer: () => void;
+  loading: boolean;
 }
 
 const LibraryContext = createContext<LibraryContextType | null>(null);
 
 export function LibraryProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<Member | null>(null);
-  const [books, setBooks] = useState<Book[]>(INITIAL_BOOKS);
+  const [books, setBooks] = useState<Book[]>([]);
   const [reserveSeconds, setReserveSeconds] = useState(3600);
   const [hasActiveReservation, setHasActiveReservation] = useState(false);
   const [reservedBookTitle, setReservedBookTitle] = useState("");
   const [timerInterval, setTimerInterval] = useState<ReturnType<typeof setInterval> | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const login = useCallback((id: string, password: string): string | null => {
-    const member = MEMBERS[id];
-    if (!member || member.password !== password) return "Invalid ID or password. Try again.";
-    setCurrentUser(member);
-    return null;
+  // Fetch books on mount
+  useEffect(() => {
+    const fetchBooks = async () => {
+      const { data } = await supabase.from("books").select("*");
+      if (data) {
+        setBooks(data.map(b => ({
+          id: b.id,
+          title: b.title,
+          author: b.author,
+          rfid_tag: b.rfid_tag,
+          status: b.status as BookStatus,
+          due_date: b.due_date,
+        })));
+      }
+    };
+    fetchBooks();
+  }, []);
+
+  const login = useCallback(async (uniId: string, password: string): Promise<string | null> => {
+    setLoading(true);
+    try {
+      const { data: member } = await supabase
+        .from("members")
+        .select("*")
+        .eq("uni_id", uniId)
+        .eq("password_hash", password)
+        .maybeSingle();
+
+      if (!member) return "Invalid ID or password. Try again.";
+
+      // Fetch borrowed books for this member
+      const { data: borrowedData } = await supabase
+        .from("borrowed_books")
+        .select("book_id")
+        .eq("member_id", member.id);
+
+      setCurrentUser({
+        id: member.id,
+        uni_id: member.uni_id,
+        name: member.name,
+        borrowed: borrowedData?.map(b => b.book_id) ?? [],
+      });
+      return null;
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   const logout = useCallback(() => {
@@ -53,7 +114,20 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     return books.filter(b => currentUser.borrowed.includes(b.id));
   }, [currentUser, books]);
 
-  const reserveBook = useCallback((bookId: string) => {
+  const reserveBook = useCallback(async (bookId: string) => {
+    // Update book status in DB
+    await supabase.from("books").update({ status: "reserved" }).eq("id", bookId);
+
+    // Insert reservation
+    if (currentUser) {
+      const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
+      await supabase.from("reservations").insert({
+        member_id: currentUser.id,
+        book_id: bookId,
+        expires_at: expiresAt,
+      });
+    }
+
     setBooks(prev => prev.map(b => b.id === bookId ? { ...b, status: "reserved" as const } : b));
     const book = books.find(b => b.id === bookId);
     if (book) {
@@ -61,7 +135,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       setHasActiveReservation(true);
       setReserveSeconds(3600);
     }
-  }, [books]);
+  }, [books, currentUser]);
 
   const startTimer = useCallback(() => {
     if (timerInterval) clearInterval(timerInterval);
@@ -86,7 +160,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   return (
     <LibraryContext.Provider value={{
       currentUser, books, reserveSeconds, hasActiveReservation, reservedBookTitle,
-      login, logout, searchBooks, getMyBooks, reserveBook, startTimer, stopTimer,
+      login, logout, searchBooks, getMyBooks, reserveBook, startTimer, stopTimer, loading,
     }}>
       {children}
     </LibraryContext.Provider>

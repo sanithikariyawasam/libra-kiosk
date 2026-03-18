@@ -1,4 +1,4 @@
-import type { Book } from "@/data/library-data";
+import type { Book } from "@/context/LibraryContext";
 import { useLibrary } from "@/context/LibraryContext";
 
 const EMOJIS = ['📘', '📗', '📙', '📕', '📓'];
@@ -34,7 +34,7 @@ export default function BookCard({ book, onReserve }: Props) {
           <span className={`font-mono text-[10px] px-2.5 py-0.5 rounded-full font-medium tracking-[0.5px] ${config.tag}`}>
             {config.label}
           </span>
-          {book.due && <span className="text-[10px] text-muted-foreground font-mono">Due {book.due}</span>}
+          {book.due_date && <span className="text-[10px] text-muted-foreground font-mono">Due {book.due_date}</span>}
         </div>
       </div>
       <div className="shrink-0">
