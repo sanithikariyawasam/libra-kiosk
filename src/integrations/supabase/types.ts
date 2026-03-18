@@ -14,7 +14,135 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      books: {
+        Row: {
+          author: string
+          created_at: string | null
+          due_date: string | null
+          id: string
+          rfid_tag: string
+          status: Database["public"]["Enums"]["book_status"]
+          title: string
+        }
+        Insert: {
+          author: string
+          created_at?: string | null
+          due_date?: string | null
+          id: string
+          rfid_tag: string
+          status?: Database["public"]["Enums"]["book_status"]
+          title: string
+        }
+        Update: {
+          author?: string
+          created_at?: string | null
+          due_date?: string | null
+          id?: string
+          rfid_tag?: string
+          status?: Database["public"]["Enums"]["book_status"]
+          title?: string
+        }
+        Relationships: []
+      }
+      borrowed_books: {
+        Row: {
+          book_id: string
+          borrowed_at: string | null
+          id: string
+          member_id: string
+        }
+        Insert: {
+          book_id: string
+          borrowed_at?: string | null
+          id?: string
+          member_id: string
+        }
+        Update: {
+          book_id?: string
+          borrowed_at?: string | null
+          id?: string
+          member_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "borrowed_books_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "borrowed_books_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      members: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          password_hash: string
+          uni_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          password_hash: string
+          uni_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          password_hash?: string
+          uni_id?: string
+        }
+        Relationships: []
+      }
+      reservations: {
+        Row: {
+          book_id: string
+          expires_at: string
+          id: string
+          member_id: string
+          reserved_at: string | null
+        }
+        Insert: {
+          book_id: string
+          expires_at: string
+          id?: string
+          member_id: string
+          reserved_at?: string | null
+        }
+        Update: {
+          book_id?: string
+          expires_at?: string
+          id?: string
+          member_id?: string
+          reserved_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reservations_book_id_fkey"
+            columns: ["book_id"]
+            isOneToOne: false
+            referencedRelation: "books"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reservations_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +151,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      book_status: "available" | "borrowed" | "reserved" | "kiosk"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +278,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      book_status: ["available", "borrowed", "reserved", "kiosk"],
+    },
   },
 } as const

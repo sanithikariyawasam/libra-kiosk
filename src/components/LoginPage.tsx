@@ -7,12 +7,12 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const { login } = useLibrary();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!memberId || !password) {
       setError("Please enter your ID and password.");
       return;
     }
-    const err = login(memberId.trim(), password.trim());
+    const err = await login(memberId.trim(), password.trim());
     if (err) setError(err);
     else setError("");
   };
