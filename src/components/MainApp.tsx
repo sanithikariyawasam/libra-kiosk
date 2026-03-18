@@ -3,6 +3,7 @@ import { useLibrary } from "@/context/LibraryContext";
 import BookCard from "@/components/BookCard";
 import ReserveModal from "@/components/ReserveModal";
 import ReserveBanner from "@/components/ReserveBanner";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { toast } from "sonner";
 
 export default function MainApp() {
@@ -135,6 +136,47 @@ export default function MainApp() {
             </div>
           </div>
         )}
+
+        {/* All Books Table */}
+        <div className="mt-10">
+          <div className="font-mono text-[10px] text-muted-foreground tracking-[2px] uppercase mb-4">
+            Full Library Catalog
+          </div>
+          <div className="bg-card border border-border rounded-[14px] overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-secondary/50">
+                  <TableHead className="font-serif font-bold text-foreground">#</TableHead>
+                  <TableHead className="font-serif font-bold text-foreground">Title</TableHead>
+                  <TableHead className="font-serif font-bold text-foreground">Author</TableHead>
+                  <TableHead className="font-serif font-bold text-foreground text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {books.map((book, i) => {
+                  const statusColors: Record<string, string> = {
+                    available: "text-accent bg-accent/10",
+                    kiosk: "text-blue-600 bg-blue-50",
+                    reserved: "text-purple-600 bg-purple-50",
+                    borrowed: "text-primary bg-primary/10",
+                  };
+                  return (
+                    <TableRow key={book.id} className="hover:bg-secondary/30">
+                      <TableCell className="font-mono text-xs text-muted-foreground">{i + 1}</TableCell>
+                      <TableCell className="font-serif font-semibold text-foreground">{book.title}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">{book.author}</TableCell>
+                      <TableCell className="text-right">
+                        <span className={`font-mono text-[10px] px-2.5 py-1 rounded-full font-medium tracking-[0.5px] ${statusColors[book.status] ?? ""}`}>
+                          {book.status.charAt(0).toUpperCase() + book.status.slice(1)}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
       </div>
 
       {/* Modal */}
