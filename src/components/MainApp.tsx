@@ -52,7 +52,7 @@ export default function MainApp() {
         </div>
         <div className="flex items-center gap-4">
           <div className="bg-[hsl(0_0%_100%/0.08)] border border-[hsl(0_0%_100%/0.12)] rounded-lg px-3.5 py-1.5 text-xs font-mono text-cream">
-            Logged in as <span className="text-accent-orange-light">{currentUser?.id}</span>
+            Logged in as <span className="text-accent-orange-light">{currentUser?.uni_id}</span>
           </div>
           <button
             onClick={logout}
