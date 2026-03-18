@@ -13,8 +13,8 @@ export default function LoginPage() {
       return;
     }
     const err = await login(memberId.trim(), password.trim());
-    if (err) setError(err);
-    else setError("");
+    if (err) setError(err);else
+    setError("");
   };
 
   return (
@@ -32,39 +32,39 @@ export default function LoginPage() {
             <input
               type="text"
               value={memberId}
-              onChange={e => setMemberId(e.target.value)}
+              onChange={(e) => setMemberId(e.target.value)}
               placeholder="e.g. 240320V"
-              className="bg-warm border-[1.5px] border-border rounded-[10px] px-4 py-3 font-sans text-sm text-ink outline-none transition-all focus:border-accent-orange focus:bg-paper placeholder:text-border"
-            />
+              className="bg-warm border-[1.5px] border-border rounded-[10px] px-4 py-3 font-sans text-sm text-ink outline-none transition-all focus:border-accent-orange focus:bg-paper placeholder:text-border" />
+            
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] font-medium text-muted-foreground tracking-[1.5px] uppercase">Password</label>
             <input
               type="password"
               value={password}
-              onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleLogin()}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleLogin()}
               placeholder="••••••••"
-              className="bg-warm border-[1.5px] border-border rounded-[10px] px-4 py-3 font-sans text-sm text-ink outline-none transition-all focus:border-accent-orange focus:bg-paper placeholder:text-border"
-            />
+              className="bg-warm border-[1.5px] border-border rounded-[10px] px-4 py-3 font-sans text-sm text-ink outline-none transition-all focus:border-accent-orange focus:bg-paper placeholder:text-border" />
+            
           </div>
         </div>
 
         <button
           onClick={handleLogin}
-          className="w-full bg-ink text-cream border-none rounded-[10px] py-3.5 font-sans text-sm font-medium cursor-pointer transition-all tracking-[0.5px] hover:bg-ink2 active:scale-[0.98]"
-        >
+          className="w-full bg-ink text-cream border-none rounded-[10px] py-3.5 font-sans text-sm font-medium cursor-pointer transition-all tracking-[0.5px] hover:bg-ink2 active:scale-[0.98]">
+          
           Sign In
         </button>
 
-        {error && (
-          <p className="text-accent-orange text-xs text-center mt-3 font-mono">{error}</p>
-        )}
+        {error &&
+        <p className="text-accent-orange text-xs text-center mt-3 font-mono">{error}</p>
+        }
 
-        <div className="mt-5 pt-5 border-t border-border text-[11px] text-muted-foreground text-center font-mono">
-          Demo: ID = <b>240320V</b> &nbsp;|&nbsp; Password = <b>1234</b>
-        </div>
+        
+
+        
       </div>
-    </div>
-  );
+    </div>);
+
 }
