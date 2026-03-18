@@ -32,9 +32,8 @@ export default function MainApp() {
     await reserveBook(modalBookId);
     startTimer();
     setModalBookId(null);
-    if (searchQuery.trim()) {
-      setSearchResults(searchBooks(searchQuery.trim(), searchType));
-    }
+    setSearchQuery("");
+    setSearchResults(null);
     toast.success("✓ Reservation confirmed! You have 1 hour.");
   };
 
