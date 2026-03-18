@@ -3,6 +3,7 @@ import { useLibrary } from "@/context/LibraryContext";
 import BookCard from "@/components/BookCard";
 import ReserveModal from "@/components/ReserveModal";
 import ReserveBanner from "@/components/ReserveBanner";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { toast } from "sonner";
 
 export default function MainApp() {
