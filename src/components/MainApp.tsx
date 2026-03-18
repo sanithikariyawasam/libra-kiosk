@@ -26,9 +26,9 @@ export default function MainApp() {
 
   const handleReserve = (bookId: string) => setModalBookId(bookId);
 
-  const confirmReserve = () => {
+  const confirmReserve = async () => {
     if (!modalBookId) return;
-    reserveBook(modalBookId);
+    await reserveBook(modalBookId);
     startTimer();
     setModalBookId(null);
     if (searchQuery.trim()) {
