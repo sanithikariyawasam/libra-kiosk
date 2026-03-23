@@ -47,7 +47,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [timerInterval, setTimerInterval] = useState<ReturnType<typeof setInterval> | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Fetch books on mount
+  // Fetch books on mount + subscribe to realtime changes
   useEffect(() => {
     const fetchBooks = async () => {
       const { data } = await supabase.from("books").select("*");
@@ -63,6 +63,31 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       }
     };
     fetchBooks();
+
+    // Realtime: update books when ESP32 processes a scan
+    const channel = supabase
+      .channel("books-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "books" },
+        (payload) => {
+          if (payload.eventType === "UPDATE") {
+            const updated = payload.new as any;
+            setBooks(prev =>
+              prev.map(b =>
+                b.id === updated.id
+                  ? { ...b, status: updated.status as BookStatus, due_date: updated.due_date }
+                  : b
+              )
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const login = useCallback(async (uniId: string, password: string): Promise<string | null> => {
