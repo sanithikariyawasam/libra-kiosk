@@ -86,6 +86,7 @@ export type Database = {
           id: string
           name: string
           password_hash: string
+          rfid_tag: string | null
           uni_id: string
         }
         Insert: {
@@ -93,6 +94,7 @@ export type Database = {
           id?: string
           name: string
           password_hash: string
+          rfid_tag?: string | null
           uni_id: string
         }
         Update: {
@@ -100,6 +102,7 @@ export type Database = {
           id?: string
           name?: string
           password_hash?: string
+          rfid_tag?: string | null
           uni_id?: string
         }
         Relationships: []
