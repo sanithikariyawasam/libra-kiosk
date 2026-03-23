@@ -16,6 +16,7 @@ export interface Member {
   id: string;
   uni_id: string;
   name: string;
+  rfid_tag: string | null;
   borrowed: string[];
 }
 
