@@ -30,7 +30,7 @@ interface LibraryContextType {
   logout: () => void;
   searchBooks: (query: string, type: "title" | "author") => Book[];
   getMyBooks: () => Book[];
-  reserveBook: (bookId: string) => Promise<void>;
+  reserveBook: (bookId: string, durationMs: number) => Promise<Date>;
   startTimer: () => void;
   stopTimer: () => void;
   loading: boolean;
@@ -141,15 +141,18 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     return books.filter(b => currentUser.borrowed.includes(b.id));
   }, [currentUser, books]);
 
-  const reserveBook = useCallback(async (bookId: string) => {
+  const reserveBook = useCallback(async (bookId: string, durationMs: number): Promise<Date> => {
+    const expiresAt = new Date(Date.now() + durationMs);
+
     // Update book status in DB
     await supabase.from("books").update({ status: "reserved" }).eq("id", bookId);
 
-    // Insert reservation
+    // Insert reservation with expires_at
     if (currentUser) {
       await supabase.from("reservations").insert({
         member_id: currentUser.id,
         book_id: bookId,
+        expires_at: expiresAt.toISOString(),
       });
     }
 
@@ -158,8 +161,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     if (book) {
       setReservedBookTitle(book.title);
       setHasActiveReservation(true);
-      setReserveSeconds(3600);
+      setReserveSeconds(Math.floor(durationMs / 1000));
     }
+    return expiresAt;
   }, [books, currentUser]);
 
   const startTimer = useCallback(() => {
