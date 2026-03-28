@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase-external";
 
 export type BookStatus = 'available' | 'borrowed' | 'reserved' | 'kiosk';
 
@@ -147,11 +147,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
     // Insert reservation
     if (currentUser) {
-      const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
       await supabase.from("reservations").insert({
         member_id: currentUser.id,
         book_id: bookId,
-        expires_at: expiresAt,
       });
     }
 
