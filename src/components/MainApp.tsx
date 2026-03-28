@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { useLibrary } from "@/context/LibraryContext";
+import type { Book } from "@/context/LibraryContext";
 import BookCard from "@/components/BookCard";
 import ReserveModal from "@/components/ReserveModal";
 import ReserveBanner from "@/components/ReserveBanner";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { toast } from "sonner";
+
+const ONE_HOUR = 60 * 60 * 1000;
+const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
 
 export default function MainApp() {
   const {
@@ -16,6 +20,7 @@ export default function MainApp() {
   const [searchType, setSearchType] = useState<"title" | "author">("title");
   const [searchResults, setSearchResults] = useState<typeof books | null>(null);
   const [modalBookId, setModalBookId] = useState<string | null>(null);
+  const [modalSource, setModalSource] = useState<"card" | "table">("card");
 
   const handleSearch = () => {
     if (!searchQuery.trim()) {
@@ -25,16 +30,29 @@ export default function MainApp() {
     setSearchResults(searchBooks(searchQuery.trim(), searchType));
   };
 
-  const handleReserve = (bookId: string) => setModalBookId(bookId);
+  const handleReserve = (bookId: string, source: "card" | "table" = "card") => {
+    setModalBookId(bookId);
+    setModalSource(source);
+  };
 
   const confirmReserve = async () => {
     if (!modalBookId) return;
-    await reserveBook(modalBookId);
+    const book = books.find(b => b.id === modalBookId);
+    if (!book) return;
+
+    const duration = book.status === "kiosk" ? ONE_HOUR : ONE_WEEK;
+    const expiresAt = await reserveBook(modalBookId, duration);
     startTimer();
     setModalBookId(null);
     setSearchQuery("");
     setSearchResults(null);
-    toast.success("✓ Reservation confirmed! You have 1 hour.");
+
+    const expiryStr = expiresAt.toLocaleString();
+    if (book.status === "kiosk") {
+      toast.success(`Book is in the kiosk! Scan your ID at kiosk to collect it. Expires: ${expiryStr}`);
+    } else {
+      toast.success(`Book reserved for 1 week! Collect from library shelf. Expires: ${expiryStr}`);
+    }
   };
 
   const modalBook = modalBookId ? books.find(b => b.id === modalBookId) : null;
@@ -114,7 +132,7 @@ export default function MainApp() {
                   <p className="text-sm font-light">No books found.</p>
                 </div>
               ) : (
-                searchResults.map(b => <BookCard key={b.id} book={b} onReserve={handleReserve} />)
+                searchResults.map(b => <BookCard key={b.id} book={b} onReserve={(id) => handleReserve(id, "card")} />)
               )}
             </div>
           </div>
@@ -130,7 +148,7 @@ export default function MainApp() {
                   <p className="text-sm font-light">You have no borrowed books right now.</p>
                 </div>
               ) : (
-                myBooks.map(b => <BookCard key={b.id} book={b} onReserve={handleReserve} />)
+                myBooks.map(b => <BookCard key={b.id} book={b} onReserve={(id) => handleReserve(id, "card")} />)
               )}
             </div>
           </div>
@@ -148,7 +166,8 @@ export default function MainApp() {
                   <TableHead className="font-serif font-bold text-foreground">#</TableHead>
                   <TableHead className="font-serif font-bold text-foreground">Title</TableHead>
                   <TableHead className="font-serif font-bold text-foreground">Author</TableHead>
-                  <TableHead className="font-serif font-bold text-foreground text-right">Status</TableHead>
+                  <TableHead className="font-serif font-bold text-foreground text-center">Status</TableHead>
+                  <TableHead className="font-serif font-bold text-foreground text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -159,15 +178,38 @@ export default function MainApp() {
                     reserved: "text-purple-600 bg-purple-50",
                     borrowed: "text-primary bg-primary/10",
                   };
+                  const isMine = currentUser?.borrowed?.includes(book.id);
+                  const canReserve = (book.status === "available" || book.status === "kiosk") && !isMine;
+
                   return (
                     <TableRow key={book.id} className="hover:bg-secondary/30">
                       <TableCell className="font-mono text-xs text-muted-foreground">{i + 1}</TableCell>
                       <TableCell className="font-serif font-semibold text-foreground">{book.title}</TableCell>
                       <TableCell className="text-muted-foreground text-sm">{book.author}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-center">
                         <span className={`font-mono text-[10px] px-2.5 py-1 rounded-full font-medium tracking-[0.5px] ${statusColors[book.status] ?? ""}`}>
                           {book.status.charAt(0).toUpperCase() + book.status.slice(1)}
                         </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {isMine ? (
+                          <span className="text-[11px] text-muted-foreground font-mono">Your Book</span>
+                        ) : canReserve ? (
+                          <button
+                            onClick={() => handleReserve(book.id, "table")}
+                            className={`rounded-lg px-4 py-1.5 text-[11px] font-medium cursor-pointer transition-all font-sans whitespace-nowrap ${
+                              book.status === "kiosk"
+                                ? "bg-blue-600 text-white hover:bg-blue-700"
+                                : "bg-green-600 text-white hover:bg-green-700"
+                            }`}
+                          >
+                            Reserve
+                          </button>
+                        ) : (
+                          <button disabled className="bg-border text-muted-foreground rounded-lg px-4 py-1.5 text-[11px] font-medium cursor-not-allowed font-sans">
+                            Unavailable
+                          </button>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
