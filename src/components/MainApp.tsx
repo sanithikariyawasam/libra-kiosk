@@ -150,6 +150,10 @@ export default function MainApp() {
               ) : (
                 myBooks.map(b => <BookCard key={b.id} book={b} onReserve={(id) => handleReserve(id, "card")} />)
               )}
+            </div>
+          </div>
+        )}
+
         {/* All Books Table */}
         <div className="mt-10">
           <div className="font-mono text-[10px] text-muted-foreground tracking-[2px] uppercase mb-4">
