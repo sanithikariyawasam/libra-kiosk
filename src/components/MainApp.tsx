@@ -132,7 +132,7 @@ export default function MainApp() {
                   <p className="text-sm font-light">No books found.</p>
                 </div>
               ) : (
-                searchResults.map(b => <BookCard key={b.id} book={b} onReserve={handleReserve} />)
+                searchResults.map(b => <BookCard key={b.id} book={b} onReserve={(id) => handleReserve(id, "card")} />)
               )}
             </div>
           </div>
@@ -148,12 +148,8 @@ export default function MainApp() {
                   <p className="text-sm font-light">You have no borrowed books right now.</p>
                 </div>
               ) : (
-                myBooks.map(b => <BookCard key={b.id} book={b} onReserve={handleReserve} />)
+                myBooks.map(b => <BookCard key={b.id} book={b} onReserve={(id) => handleReserve(id, "card")} />)
               )}
-            </div>
-          </div>
-        )}
-
         {/* All Books Table */}
         <div className="mt-10">
           <div className="font-mono text-[10px] text-muted-foreground tracking-[2px] uppercase mb-4">
@@ -166,7 +162,8 @@ export default function MainApp() {
                   <TableHead className="font-serif font-bold text-foreground">#</TableHead>
                   <TableHead className="font-serif font-bold text-foreground">Title</TableHead>
                   <TableHead className="font-serif font-bold text-foreground">Author</TableHead>
-                  <TableHead className="font-serif font-bold text-foreground text-right">Status</TableHead>
+                  <TableHead className="font-serif font-bold text-foreground text-center">Status</TableHead>
+                  <TableHead className="font-serif font-bold text-foreground text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -177,15 +174,38 @@ export default function MainApp() {
                     reserved: "text-purple-600 bg-purple-50",
                     borrowed: "text-primary bg-primary/10",
                   };
+                  const isMine = currentUser?.borrowed?.includes(book.id);
+                  const canReserve = (book.status === "available" || book.status === "kiosk") && !isMine;
+
                   return (
                     <TableRow key={book.id} className="hover:bg-secondary/30">
                       <TableCell className="font-mono text-xs text-muted-foreground">{i + 1}</TableCell>
                       <TableCell className="font-serif font-semibold text-foreground">{book.title}</TableCell>
                       <TableCell className="text-muted-foreground text-sm">{book.author}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-center">
                         <span className={`font-mono text-[10px] px-2.5 py-1 rounded-full font-medium tracking-[0.5px] ${statusColors[book.status] ?? ""}`}>
                           {book.status.charAt(0).toUpperCase() + book.status.slice(1)}
                         </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {isMine ? (
+                          <span className="text-[11px] text-muted-foreground font-mono">Your Book</span>
+                        ) : canReserve ? (
+                          <button
+                            onClick={() => handleReserve(book.id, "table")}
+                            className={`rounded-lg px-4 py-1.5 text-[11px] font-medium cursor-pointer transition-all font-sans whitespace-nowrap ${
+                              book.status === "kiosk"
+                                ? "bg-blue-600 text-white hover:bg-blue-700"
+                                : "bg-green-600 text-white hover:bg-green-700"
+                            }`}
+                          >
+                            Reserve
+                          </button>
+                        ) : (
+                          <button disabled className="bg-border text-muted-foreground rounded-lg px-4 py-1.5 text-[11px] font-medium cursor-not-allowed font-sans">
+                            Unavailable
+                          </button>
+                        )}
                       </TableCell>
                     </TableRow>
                   );
