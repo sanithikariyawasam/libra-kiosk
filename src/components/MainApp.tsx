@@ -1,10 +1,14 @@
 import { useState } from "react";
 import { useLibrary } from "@/context/LibraryContext";
+import type { Book } from "@/context/LibraryContext";
 import BookCard from "@/components/BookCard";
 import ReserveModal from "@/components/ReserveModal";
 import ReserveBanner from "@/components/ReserveBanner";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { toast } from "sonner";
+
+const ONE_HOUR = 60 * 60 * 1000;
+const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
 
 export default function MainApp() {
   const {
@@ -16,6 +20,7 @@ export default function MainApp() {
   const [searchType, setSearchType] = useState<"title" | "author">("title");
   const [searchResults, setSearchResults] = useState<typeof books | null>(null);
   const [modalBookId, setModalBookId] = useState<string | null>(null);
+  const [modalSource, setModalSource] = useState<"card" | "table">("card");
 
   const handleSearch = () => {
     if (!searchQuery.trim()) {
@@ -25,16 +30,29 @@ export default function MainApp() {
     setSearchResults(searchBooks(searchQuery.trim(), searchType));
   };
 
-  const handleReserve = (bookId: string) => setModalBookId(bookId);
+  const handleReserve = (bookId: string, source: "card" | "table" = "card") => {
+    setModalBookId(bookId);
+    setModalSource(source);
+  };
 
   const confirmReserve = async () => {
     if (!modalBookId) return;
-    await reserveBook(modalBookId);
+    const book = books.find(b => b.id === modalBookId);
+    if (!book) return;
+
+    const duration = book.status === "kiosk" ? ONE_HOUR : ONE_WEEK;
+    const expiresAt = await reserveBook(modalBookId, duration);
     startTimer();
     setModalBookId(null);
     setSearchQuery("");
     setSearchResults(null);
-    toast.success("✓ Reservation confirmed! You have 1 hour.");
+
+    const expiryStr = expiresAt.toLocaleString();
+    if (book.status === "kiosk") {
+      toast.success(`Book is in the kiosk! Scan your ID at kiosk to collect it. Expires: ${expiryStr}`);
+    } else {
+      toast.success(`Book reserved for 1 week! Collect from library shelf. Expires: ${expiryStr}`);
+    }
   };
 
   const modalBook = modalBookId ? books.find(b => b.id === modalBookId) : null;
