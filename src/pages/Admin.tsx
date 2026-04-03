@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase-external";
 import { toast } from "sonner";
 import { RefreshCw, LogOut } from "lucide-react";
+import LibraryReturns from "@/components/LibraryReturns";
 
 type KioskSlot = {
   id: string;
