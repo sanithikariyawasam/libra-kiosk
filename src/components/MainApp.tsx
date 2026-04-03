@@ -30,9 +30,21 @@ export default function MainApp() {
     setSearchResults(searchBooks(searchQuery.trim(), searchType));
   };
 
-  const handleReserve = (bookId: string, source: "card" | "table" = "card") => {
-    setModalBookId(bookId);
-    setModalSource(source);
+  const handleReserve = async (bookId: string, source: "card" | "table" = "card") => {
+    const book = books.find(b => b.id === bookId);
+    if (!book) return;
+
+    if (book.status === "kiosk") {
+      // Kiosk book: show confirmation modal
+      setModalBookId(bookId);
+      setModalSource(source);
+    } else {
+      // Available book: silently reserve for 1 week, no modal/countdown
+      await reserveBook(bookId, ONE_WEEK);
+      setSearchQuery("");
+      setSearchResults(null);
+      toast.success("Book reserved successfully!");
+    }
   };
 
   const confirmReserve = async () => {
@@ -40,19 +52,14 @@ export default function MainApp() {
     const book = books.find(b => b.id === modalBookId);
     if (!book) return;
 
-    const duration = book.status === "kiosk" ? ONE_HOUR : ONE_WEEK;
-    const expiresAt = await reserveBook(modalBookId, duration);
+    const expiresAt = await reserveBook(modalBookId, ONE_HOUR);
     startTimer();
     setModalBookId(null);
     setSearchQuery("");
     setSearchResults(null);
 
     const expiryStr = expiresAt.toLocaleString();
-    if (book.status === "kiosk") {
-      toast.success(`Book is in the kiosk! Scan your ID at kiosk to collect it. Expires: ${expiryStr}`);
-    } else {
-      toast.success(`Book reserved for 1 week! Collect from library shelf. Expires: ${expiryStr}`);
-    }
+    toast.success(`Book is in the kiosk! Scan your ID at kiosk to collect it. Expires: ${expiryStr}`);
   };
 
   const modalBook = modalBookId ? books.find(b => b.id === modalBookId) : null;
