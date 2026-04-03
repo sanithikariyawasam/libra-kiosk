@@ -80,6 +80,30 @@ export type Database = {
           },
         ]
       }
+      kiosk: {
+        Row: {
+          book_id: string | null
+          book_name: string | null
+          compartment: string
+          id: string
+          returned_at: string | null
+        }
+        Insert: {
+          book_id?: string | null
+          book_name?: string | null
+          compartment: string
+          id?: string
+          returned_at?: string | null
+        }
+        Update: {
+          book_id?: string | null
+          book_name?: string | null
+          compartment?: string
+          id?: string
+          returned_at?: string | null
+        }
+        Relationships: []
+      }
       members: {
         Row: {
           created_at: string | null
