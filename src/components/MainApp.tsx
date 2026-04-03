@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useLibrary } from "@/context/LibraryContext";
 import type { Book } from "@/context/LibraryContext";
 import BookCard from "@/components/BookCard";
@@ -76,6 +77,12 @@ export default function MainApp() {
           </h2>
         </div>
         <div className="flex items-center gap-4">
+          <Link
+            to="/admin"
+            className="text-[hsl(37_33%_92%/0.6)] font-sans text-xs hover:text-cream transition-colors"
+          >
+            Admin
+          </Link>
           <div className="bg-[hsl(0_0%_100%/0.08)] border border-[hsl(0_0%_100%/0.12)] rounded-lg px-3.5 py-1.5 text-xs font-mono text-cream">
             Logged in as <span className="text-accent-orange-light">{currentUser?.uni_id}</span>
           </div>
