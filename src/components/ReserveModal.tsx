@@ -16,7 +16,7 @@ export default function ReserveModal({ bookTitle, onCancel, onConfirm }: Props) 
           {bookTitle}
         </div>
         <div className="bg-warm border border-border rounded-[10px] px-4 py-3.5 mb-5 text-[13px] text-ink2 leading-[1.7] font-mono">
-          📍 Location: Kiosk Unit A<br />
+          📍 Location: Kiosk<br />
           ⏱ Reservation window: 60 minutes<br />
           🪪 Bring your student ID card
         </div>
