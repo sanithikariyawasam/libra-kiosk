@@ -158,7 +158,9 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
     setBooks(prev => prev.map(b => b.id === bookId ? { ...b, status: "reserved" as const } : b));
     const book = books.find(b => b.id === bookId);
-    if (book) {
+    // Only show countdown banner for kiosk books (1-hour reservations)
+    const isKiosk = book?.status === "kiosk";
+    if (book && isKiosk) {
       setReservedBookTitle(book.title);
       setHasActiveReservation(true);
       setReserveSeconds(Math.floor(durationMs / 1000));
