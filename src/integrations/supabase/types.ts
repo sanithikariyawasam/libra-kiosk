@@ -50,18 +50,21 @@ export type Database = {
           borrowed_at: string | null
           id: string
           member_id: string
+          returned_at: string | null
         }
         Insert: {
           book_id: string
           borrowed_at?: string | null
           id?: string
           member_id: string
+          returned_at?: string | null
         }
         Update: {
           book_id?: string
           borrowed_at?: string | null
           id?: string
           member_id?: string
+          returned_at?: string | null
         }
         Relationships: [
           {
