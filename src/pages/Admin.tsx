@@ -205,6 +205,9 @@ function KioskDashboard({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
       </div>
+
+      {/* Library Returns Section */}
+      <LibraryReturns />
     </div>
   );
 }
