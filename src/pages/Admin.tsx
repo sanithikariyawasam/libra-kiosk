@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase-external";
 import { toast } from "sonner";
 import { RefreshCw, LogOut } from "lucide-react";
-import LibraryReturns from "@/components/LibraryReturns";
+import KioskCompartmentModal from "@/components/KioskCompartmentModal";
+import CurrentlyBorrowedBooks from "@/components/CurrentlyBorrowedBooks";
 
 type KioskSlot = {
   id: string;
@@ -31,11 +32,11 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-cream p-5">
-      <div className="animate-rise bg-paper border border-border rounded-[20px] p-12 w-full max-w-[420px] shadow-[0_8px_40px_hsl(var(--shadow-color)/0.08)]">
+    <div className="flex min-h-screen items-center justify-center bg-background p-5">
+      <div className="animate-rise bg-card border border-border rounded-[20px] p-12 w-full max-w-[420px] shadow-[0_8px_40px_hsl(var(--shadow-color)/0.08)]">
         <div className="text-center mb-9">
           <span className="text-[40px] block mb-2.5">🔐</span>
-          <h1 className="font-serif text-[28px] font-black text-ink tracking-tight">Admin Login</h1>
+          <h1 className="font-serif text-[28px] font-black text-foreground tracking-tight">Admin Login</h1>
           <p className="text-[13px] text-muted-foreground mt-1 font-light">LibraKiosk · Admin Portal</p>
         </div>
 
@@ -47,7 +48,7 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="admin@example.com"
-              className="bg-warm border-[1.5px] border-border rounded-[10px] px-4 py-3 font-sans text-sm text-ink outline-none transition-all focus:border-accent-orange focus:bg-paper placeholder:text-border"
+              className="bg-secondary border-[1.5px] border-border rounded-[10px] px-4 py-3 font-sans text-sm text-foreground outline-none transition-all focus:border-primary focus:bg-card placeholder:text-muted-foreground/50"
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -58,7 +59,7 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleLogin()}
               placeholder="••••••••"
-              className="bg-warm border-[1.5px] border-border rounded-[10px] px-4 py-3 font-sans text-sm text-ink outline-none transition-all focus:border-accent-orange focus:bg-paper placeholder:text-border"
+              className="bg-secondary border-[1.5px] border-border rounded-[10px] px-4 py-3 font-sans text-sm text-foreground outline-none transition-all focus:border-primary focus:bg-card placeholder:text-muted-foreground/50"
             />
           </div>
         </div>
@@ -66,12 +67,12 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
         <button
           onClick={handleLogin}
           disabled={loading}
-          className="w-full bg-ink text-cream border-none rounded-[10px] py-3.5 font-sans text-sm font-medium cursor-pointer transition-all tracking-[0.5px] hover:bg-ink2 active:scale-[0.98] disabled:opacity-50"
+          className="w-full bg-foreground text-background border-none rounded-[10px] py-3.5 font-sans text-sm font-medium cursor-pointer transition-all tracking-[0.5px] hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
         >
           {loading ? "Signing in..." : "Login"}
         </button>
 
-        {error && <p className="text-accent-orange text-xs text-center mt-3 font-mono">{error}</p>}
+        {error && <p className="text-destructive text-xs text-center mt-3 font-mono">{error}</p>}
       </div>
     </div>
   );
@@ -80,6 +81,8 @@ function AdminLogin({ onLogin }: { onLogin: () => void }) {
 function KioskDashboard({ onLogout }: { onLogout: () => void }) {
   const [slots, setSlots] = useState<KioskSlot[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedSlot, setSelectedSlot] = useState<KioskSlot | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const fetchSlots = async () => {
     setLoading(true);
@@ -104,37 +107,41 @@ function KioskDashboard({ onLogout }: { onLogout: () => void }) {
     onLogout();
   };
 
-  // Hexagonal positions for 6 compartments
+  const handleSlotClick = (slot: KioskSlot) => {
+    if (!slot.book_name) return;
+    setSelectedSlot(slot);
+    setModalOpen(true);
+  };
+
   const positions = [
-    { top: "5%", left: "50%", transform: "translate(-50%, 0)" },      // A - top
-    { top: "25%", left: "85%", transform: "translate(-50%, 0)" },     // B - top-right
-    { top: "65%", left: "85%", transform: "translate(-50%, 0)" },     // C - bottom-right
-    { top: "85%", left: "50%", transform: "translate(-50%, 0)" },     // D - bottom
-    { top: "65%", left: "15%", transform: "translate(-50%, 0)" },     // E - bottom-left
-    { top: "25%", left: "15%", transform: "translate(-50%, 0)" },     // F - top-left
+    { top: "5%", left: "50%", transform: "translate(-50%, 0)" },
+    { top: "25%", left: "85%", transform: "translate(-50%, 0)" },
+    { top: "65%", left: "85%", transform: "translate(-50%, 0)" },
+    { top: "85%", left: "50%", transform: "translate(-50%, 0)" },
+    { top: "65%", left: "15%", transform: "translate(-50%, 0)" },
+    { top: "25%", left: "15%", transform: "translate(-50%, 0)" },
   ];
 
   return (
-    <div className="min-h-screen bg-paper">
-      {/* Header */}
-      <header className="bg-ink text-cream px-10 flex items-center justify-between h-16 sticky top-0 z-[100]">
+    <div className="min-h-screen bg-card">
+      <header className="bg-foreground text-background px-10 flex items-center justify-between h-16 sticky top-0 z-[100]">
         <div className="flex items-center gap-2.5">
           <span className="text-xl">📚</span>
           <h2 className="font-serif text-lg font-bold tracking-tight">
-            LibraKiosk <span className="text-[10px] text-[hsl(37_33%_92%/0.4)] font-mono ml-1">Admin</span>
+            LibraKiosk <span className="text-[10px] opacity-40 font-mono ml-1">Admin</span>
           </h2>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={fetchSlots}
-            className="flex items-center gap-1.5 bg-transparent border border-[hsl(0_0%_100%/0.2)] text-[hsl(37_33%_92%/0.6)] font-sans text-xs px-3.5 py-1.5 rounded-lg cursor-pointer transition-all hover:border-[hsl(0_0%_100%/0.4)] hover:text-cream"
+            className="flex items-center gap-1.5 bg-transparent border border-background/20 text-background/60 font-sans text-xs px-3.5 py-1.5 rounded-lg cursor-pointer transition-all hover:border-background/40 hover:text-background"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             Refresh
           </button>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 bg-transparent border border-[hsl(0_0%_100%/0.2)] text-[hsl(37_33%_92%/0.6)] font-sans text-xs px-3.5 py-1.5 rounded-lg cursor-pointer transition-all hover:border-[hsl(0_0%_100%/0.4)] hover:text-cream"
+            className="flex items-center gap-1.5 bg-transparent border border-background/20 text-background/60 font-sans text-xs px-3.5 py-1.5 rounded-lg cursor-pointer transition-all hover:border-background/40 hover:text-background"
           >
             <LogOut className="w-3.5 h-3.5" />
             Logout
@@ -142,20 +149,18 @@ function KioskDashboard({ onLogout }: { onLogout: () => void }) {
         </div>
       </header>
 
-      {/* Dashboard */}
       <div className="px-10 py-12 max-w-4xl mx-auto">
-        <h1 className="font-serif text-[36px] font-black text-ink tracking-tight mb-2 text-center">
+        <h1 className="font-serif text-[36px] font-black text-foreground tracking-tight mb-2 text-center">
           Kiosk Compartment Status
         </h1>
         <p className="text-sm text-muted-foreground font-light text-center mb-12">
-          Live view of all 6 kiosk compartments
+          Live view of all 6 kiosk compartments · Click an occupied slot for details
         </p>
 
         {loading ? (
           <div className="text-center text-muted-foreground text-sm py-20">Loading...</div>
         ) : (
           <div className="relative w-full max-w-[500px] mx-auto" style={{ aspectRatio: "1" }}>
-            {/* Center label */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
               <span className="text-[32px]">📦</span>
               <p className="text-xs text-muted-foreground font-mono mt-1">KIOSK</p>
@@ -168,23 +173,24 @@ function KioskDashboard({ onLogout }: { onLogout: () => void }) {
               return (
                 <div
                   key={slot.id}
+                  onClick={() => handleSlotClick(slot)}
                   className={`absolute w-[140px] rounded-2xl border-2 p-4 text-center transition-all shadow-md ${
                     occupied
-                      ? "bg-[hsl(var(--kiosk-blue-light))] border-[hsl(var(--kiosk-blue))]"
-                      : "bg-[hsl(var(--warm))] border-border"
+                      ? "bg-accent/10 border-accent cursor-pointer hover:shadow-lg hover:scale-105"
+                      : "bg-muted/30 border-border opacity-60"
                   }`}
                   style={pos}
                 >
                   <div
                     className={`text-2xl font-serif font-black mb-1 ${
-                      occupied ? "text-[hsl(var(--kiosk-blue))]" : "text-muted-foreground"
+                      occupied ? "text-accent" : "text-muted-foreground"
                     }`}
                   >
                     {slot.compartment}
                   </div>
                   <div
                     className={`text-xs font-medium truncate ${
-                      occupied ? "text-ink" : "text-muted-foreground italic"
+                      occupied ? "text-foreground" : "text-muted-foreground italic"
                     }`}
                   >
                     {slot.book_name || "Empty"}
@@ -206,8 +212,13 @@ function KioskDashboard({ onLogout }: { onLogout: () => void }) {
         )}
       </div>
 
-      {/* Library Returns Section */}
-      <LibraryReturns />
+      <CurrentlyBorrowedBooks />
+
+      <KioskCompartmentModal
+        slot={selectedSlot}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+      />
     </div>
   );
 }
@@ -216,12 +227,10 @@ export default function Admin() {
   const [authed, setAuthed] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthed(!!session);
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setAuthed(!!session);
     });
@@ -231,7 +240,7 @@ export default function Admin() {
 
   if (authed === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-cream">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <p className="text-muted-foreground text-sm">Loading...</p>
       </div>
     );
