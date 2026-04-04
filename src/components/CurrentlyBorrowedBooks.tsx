@@ -6,13 +6,13 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 
 type BorrowedRecord = {
   id: string;
+  borrowed_at: string | null;
+  due_date: string | null;
+  returned_at: string | null;
   book_id: string;
   member_id: string;
-  borrowed_at: string | null;
-  book_title: string;
-  member_name: string;
-  due_date: Date | null;
-  overdue: boolean;
+  books: { title: string } | null;
+  members: { name: string; uni_id: string } | null;
 };
 
 export default function CurrentlyBorrowedBooks() {
@@ -21,10 +21,25 @@ export default function CurrentlyBorrowedBooks() {
 
   const fetchRecords = async () => {
     setLoading(true);
-    const { data: borrowed, error } = await supabase
+    const { data, error } = await supabase
       .from("borrowed_books")
-      .select("*")
-      .is("returned_at", null);
+      .select(`
+        id,
+        borrowed_at,
+        due_date,
+        returned_at,
+        book_id,
+        member_id,
+        books!borrowed_books_book_id_fkey (
+          title
+        ),
+        members!borrowed_books_member_id_fkey (
+          name,
+          uni_id
+        )
+      `)
+      .is("returned_at", null)
+      .order("due_date", { ascending: true });
 
     if (error) {
       toast.error("Failed to fetch borrowed books");
@@ -32,51 +47,39 @@ export default function CurrentlyBorrowedBooks() {
       return;
     }
 
-    if (!borrowed || borrowed.length === 0) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
-
-    const bookIds = [...new Set(borrowed.map(b => b.book_id))];
-    const memberIds = [...new Set(borrowed.map(b => b.member_id))];
-
-    const [booksRes, membersRes] = await Promise.all([
-      supabase.from("books").select("id, title").in("id", bookIds),
-      supabase.from("members").select("id, name").in("id", memberIds),
-    ]);
-
-    const bookMap = new Map((booksRes.data || []).map(b => [b.id, b.title]));
-    const memberMap = new Map((membersRes.data || []).map(m => [m.id, m.name]));
-    const now = new Date();
-
-    const mapped = borrowed.map(b => {
-      const dueDate = b.borrowed_at ? new Date(new Date(b.borrowed_at).getTime() + 14 * 24 * 60 * 60 * 1000) : null;
-      return {
-        id: b.id,
-        book_id: b.book_id,
-        member_id: b.member_id,
-        borrowed_at: b.borrowed_at,
-        book_title: bookMap.get(b.book_id) || "Unknown",
-        member_name: memberMap.get(b.member_id) || "Unknown",
-        due_date: dueDate,
-        overdue: dueDate ? now > dueDate : false,
-      };
-    });
-
-    mapped.sort((a, b) => {
-      if (!a.due_date) return 1;
-      if (!b.due_date) return -1;
-      return a.due_date.getTime() - b.due_date.getTime();
-    });
-
-    setRecords(mapped);
+    setRecords((data as unknown as BorrowedRecord[]) || []);
     setLoading(false);
   };
 
   useEffect(() => {
     fetchRecords();
   }, []);
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "—";
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      timeZone: "Asia/Colombo",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  const isOverdue = (dueDateStr: string | null) => {
+    if (!dueDateStr) return false;
+    return new Date() > new Date(dueDateStr);
+  };
+
+  // Sort: overdue first (most urgent), on-time next, no due date last
+  const sorted = [...records].sort((a, b) => {
+    const aOverdue = isOverdue(a.due_date);
+    const bOverdue = isOverdue(b.due_date);
+    if (aOverdue && !bOverdue) return -1;
+    if (!aOverdue && bOverdue) return 1;
+    if (!a.due_date) return 1;
+    if (!b.due_date) return -1;
+    return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+  });
 
   return (
     <div className="px-10 py-10 max-w-5xl mx-auto">
@@ -98,7 +101,7 @@ export default function CurrentlyBorrowedBooks() {
 
       {loading ? (
         <div className="text-center text-muted-foreground text-sm py-10">Loading...</div>
-      ) : records.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">
           <span className="text-4xl block mb-2 opacity-30">✅</span>
           <p className="text-sm font-light">No books currently borrowed.</p>
@@ -117,27 +120,15 @@ export default function CurrentlyBorrowedBooks() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {records.map(r => (
+              {sorted.map(r => (
                 <TableRow key={r.id}>
-                  <TableCell className="font-serif text-foreground">{r.book_title}</TableCell>
-                  <TableCell className="font-medium text-foreground">{r.member_name}</TableCell>
-                  <TableCell className="text-muted-foreground text-xs font-mono max-w-[120px] truncate">{r.member_id}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm font-mono">
-                    {r.borrowed_at
-                      ? new Date(r.borrowed_at).toLocaleDateString(undefined, {
-                          year: "numeric", month: "short", day: "numeric",
-                        })
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm font-mono">
-                    {r.due_date
-                      ? r.due_date.toLocaleDateString(undefined, {
-                          year: "numeric", month: "short", day: "numeric",
-                        })
-                      : "—"}
-                  </TableCell>
+                  <TableCell className="font-serif text-foreground">{r.books?.title || "Unknown"}</TableCell>
+                  <TableCell className="font-medium text-foreground">{r.members?.name || "Unknown"}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs font-mono max-w-[120px] truncate">{r.members?.uni_id || "—"}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm font-mono">{formatDate(r.borrowed_at)}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm font-mono">{formatDate(r.due_date)}</TableCell>
                   <TableCell>
-                    {r.overdue ? (
+                    {isOverdue(r.due_date) ? (
                       <span className="bg-destructive/10 text-destructive text-[11px] font-semibold px-2.5 py-1 rounded-full">
                         🔴 Overdue
                       </span>

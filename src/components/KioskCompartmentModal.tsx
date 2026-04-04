@@ -15,10 +15,14 @@ type KioskSlot = {
   returned_at: string | null;
 };
 
-type MemberInfo = {
-  name: string;
-  id: string;
-} | null;
+type SlotDetail = {
+  compartment: string;
+  book_id: string | null;
+  book_name: string | null;
+  returned_at: string | null;
+  member_id: string | null;
+  members: { name: string; uni_id: string } | null;
+};
 
 export default function KioskCompartmentModal({
   slot,
@@ -29,43 +33,57 @@ export default function KioskCompartmentModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [member, setMember] = useState<MemberInfo>(null);
+  const [detail, setDetail] = useState<SlotDetail | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!open || !slot?.book_id) {
-      setMember(null);
+      setDetail(null);
       return;
     }
 
-    const fetchMember = async () => {
+    const fetchDetail = async () => {
       setLoading(true);
-      // Find borrowed_books record matching this book_id
-      const { data: borrowed } = await supabase
-        .from("borrowed_books")
-        .select("member_id")
-        .eq("book_id", slot.book_id!)
-        .order("borrowed_at", { ascending: false })
-        .limit(1);
+      const { data, error } = await supabase
+        .from("kiosk")
+        .select(`
+          compartment,
+          book_id,
+          book_name,
+          returned_at,
+          member_id,
+          members!kiosk_member_id_fkey (
+            name,
+            uni_id
+          )
+        `)
+        .eq("compartment", slot.compartment)
+        .single();
 
-      if (borrowed && borrowed.length > 0) {
-        const { data: memberData } = await supabase
-          .from("members")
-          .select("id, name")
-          .eq("id", borrowed[0].member_id)
-          .single();
-
-        if (memberData) {
-          setMember({ name: memberData.name, id: memberData.id });
-        }
+      if (!error && data) {
+        setDetail(data as unknown as SlotDetail);
       }
       setLoading(false);
     };
 
-    fetchMember();
-  }, [open, slot?.book_id]);
+    fetchDetail();
+  }, [open, slot?.compartment, slot?.book_id]);
 
   if (!slot) return null;
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "—";
+    return new Date(dateStr).toLocaleString("en-US", {
+      timeZone: "Asia/Colombo",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const d = detail;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -75,55 +93,47 @@ export default function KioskCompartmentModal({
             Compartment Details
           </DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-4 pt-2">
-          <div className="flex items-start gap-2.5">
-            <span className="text-lg">📚</span>
-            <div>
-              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Book Name</p>
-              <p className="text-sm font-medium text-foreground">{slot.book_name || "Unknown"}</p>
+        {loading ? (
+          <p className="text-sm text-muted-foreground italic py-4">Loading...</p>
+        ) : (
+          <div className="flex flex-col gap-4 pt-2">
+            <div className="flex items-start gap-2.5">
+              <span className="text-lg">📚</span>
+              <div>
+                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Book Name</p>
+                <p className="text-sm font-medium text-foreground">{d?.book_name || slot.book_name || "Unknown"}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <span className="text-lg">🔖</span>
+              <div>
+                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Compartment</p>
+                <p className="text-sm font-medium text-foreground">Compartment {(d?.compartment || slot.compartment).trim()}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <span className="text-lg">🕐</span>
+              <div>
+                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Returned At</p>
+                <p className="text-sm font-medium text-foreground">{formatDate(d?.returned_at || slot.returned_at)}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <span className="text-lg">👤</span>
+              <div>
+                <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Member</p>
+                {d?.members ? (
+                  <>
+                    <p className="text-sm font-medium text-foreground">{d.members.name}</p>
+                    <p className="text-xs text-muted-foreground font-mono mt-0.5">{d.members.uni_id}</p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Member info not available</p>
+                )}
+              </div>
             </div>
           </div>
-          <div className="flex items-start gap-2.5">
-            <span className="text-lg">🔖</span>
-            <div>
-              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Compartment</p>
-              <p className="text-sm font-medium text-foreground">Compartment {slot.compartment}</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-2.5">
-            <span className="text-lg">🕐</span>
-            <div>
-              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Returned At</p>
-              <p className="text-sm font-medium text-foreground">
-                {slot.returned_at
-                  ? new Date(slot.returned_at).toLocaleString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : "—"}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start gap-2.5">
-            <span className="text-lg">👤</span>
-            <div>
-              <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Member</p>
-              {loading ? (
-                <p className="text-sm text-muted-foreground italic">Loading...</p>
-              ) : member ? (
-                <>
-                  <p className="text-sm font-medium text-foreground">{member.name}</p>
-                  <p className="text-xs text-muted-foreground font-mono mt-0.5">{member.id}</p>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">Member info not available</p>
-              )}
-            </div>
-          </div>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   );
