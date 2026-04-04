@@ -4,50 +4,92 @@ import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
-type BorrowedRecord = {
+type CombinedRecord = {
   id: string;
   borrowed_at: string | null;
   due_date: string | null;
-  returned_at: string | null;
   book_id: string;
   member_id: string;
-  books: { title: string } | null;
-  members: { name: string; uni_id: string } | null;
+  book_title: string;
+  member_name: string;
+  member_uni_id: string;
 };
 
 export default function CurrentlyBorrowedBooks() {
-  const [records, setRecords] = useState<BorrowedRecord[]>([]);
+  const [records, setRecords] = useState<CombinedRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchRecords = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+
+    // Step 1
+    const { data: borrowedData, error } = await supabase
       .from("borrowed_books")
-      .select(`
-        id,
-        borrowed_at,
-        due_date,
-        returned_at,
-        book_id,
-        member_id,
-        books!borrowed_books_book_id_fkey (
-          title
-        ),
-        members!borrowed_books_member_id_fkey (
-          name,
-          uni_id
-        )
-      `)
+      .select("id, member_id, book_id, borrowed_at, due_date")
       .is("returned_at", null)
       .order("due_date", { ascending: true });
 
-    if (error) {
+    console.log("borrowedData:", borrowedData, "error:", error);
+
+    if (error || !borrowedData) {
       toast.error("Failed to fetch borrowed books");
       setLoading(false);
       return;
     }
 
-    setRecords((data as unknown as BorrowedRecord[]) || []);
+    // Steps 2 & 3 — fetch book and member for each record
+    const combined: CombinedRecord[] = await Promise.all(
+      borrowedData.map(async (record: any) => {
+        let book_title = "N/A";
+        let member_name = "N/A";
+        let member_uni_id = "N/A";
+
+        try {
+          const { data: bookData } = await supabase
+            .from("books")
+            .select("id, title")
+            .eq("id", record.book_id)
+            .single();
+          if (bookData) book_title = bookData.title;
+        } catch {}
+
+        try {
+          const { data: memberData } = await supabase
+            .from("members")
+            .select("id, name, uni_id")
+            .eq("id", record.member_id)
+            .single();
+          if (memberData) {
+            member_name = memberData.name;
+            member_uni_id = memberData.uni_id;
+          }
+        } catch {}
+
+        return {
+          id: record.id,
+          borrowed_at: record.borrowed_at,
+          due_date: record.due_date,
+          book_id: record.book_id,
+          member_id: record.member_id,
+          book_title,
+          member_name,
+          member_uni_id,
+        };
+      })
+    );
+
+    // Step 4 — sort
+    const sorted = combined.sort((a, b) => {
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      const aOverdue = new Date(a.due_date) < new Date();
+      const bOverdue = new Date(b.due_date) < new Date();
+      if (aOverdue && !bOverdue) return -1;
+      if (!aOverdue && bOverdue) return 1;
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+    });
+
+    setRecords(sorted);
     setLoading(false);
   };
 
@@ -70,17 +112,6 @@ export default function CurrentlyBorrowedBooks() {
     return new Date() > new Date(dueDateStr);
   };
 
-  // Sort: overdue first (most urgent), on-time next, no due date last
-  const sorted = [...records].sort((a, b) => {
-    const aOverdue = isOverdue(a.due_date);
-    const bOverdue = isOverdue(b.due_date);
-    if (aOverdue && !bOverdue) return -1;
-    if (!aOverdue && bOverdue) return 1;
-    if (!a.due_date) return 1;
-    if (!b.due_date) return -1;
-    return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
-  });
-
   return (
     <div className="px-10 py-10 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-2">
@@ -101,7 +132,7 @@ export default function CurrentlyBorrowedBooks() {
 
       {loading ? (
         <div className="text-center text-muted-foreground text-sm py-10">Loading...</div>
-      ) : sorted.length === 0 ? (
+      ) : records.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">
           <span className="text-4xl block mb-2 opacity-30">✅</span>
           <p className="text-sm font-light">No books currently borrowed.</p>
@@ -120,11 +151,11 @@ export default function CurrentlyBorrowedBooks() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sorted.map(r => (
+              {records.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="font-serif text-foreground">{r.books?.title || "Unknown"}</TableCell>
-                  <TableCell className="font-medium text-foreground">{r.members?.name || "Unknown"}</TableCell>
-                  <TableCell className="text-muted-foreground text-xs font-mono max-w-[120px] truncate">{r.members?.uni_id || "—"}</TableCell>
+                  <TableCell className="font-serif text-foreground">{r.book_title}</TableCell>
+                  <TableCell className="font-medium text-foreground">{r.member_name}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs font-mono max-w-[120px] truncate">{r.member_uni_id}</TableCell>
                   <TableCell className="text-muted-foreground text-sm font-mono">{formatDate(r.borrowed_at)}</TableCell>
                   <TableCell className="text-muted-foreground text-sm font-mono">{formatDate(r.due_date)}</TableCell>
                   <TableCell>
