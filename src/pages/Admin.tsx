@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase-external";
 import { toast } from "sonner";
 import { RefreshCw, LogOut } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import KioskCompartmentModal from "@/components/KioskCompartmentModal";
 import CurrentlyBorrowedBooks from "@/components/CurrentlyBorrowedBooks";
+import TransactionHistory from "@/components/TransactionHistory";
 
 type KioskSlot = {
   id: string;
@@ -149,70 +151,90 @@ function KioskDashboard({ onLogout }: { onLogout: () => void }) {
         </div>
       </header>
 
-      <div className="px-10 py-12 max-w-4xl mx-auto">
-        <h1 className="font-serif text-[36px] font-black text-foreground tracking-tight mb-2 text-center">
-          Kiosk Compartment Status
-        </h1>
-        <p className="text-sm text-muted-foreground font-light text-center mb-12">
-          Live view of all 6 kiosk compartments · Click an occupied slot for details
-        </p>
+      <Tabs defaultValue="kiosk" className="px-10 py-8 max-w-5xl mx-auto">
+        <TabsList className="w-full justify-start mb-8 bg-secondary/50 p-1 rounded-xl">
+          <TabsTrigger value="kiosk" className="text-sm font-medium gap-1.5 data-[state=active]:bg-background">
+            🏠 Kiosk Status
+          </TabsTrigger>
+          <TabsTrigger value="borrowed" className="text-sm font-medium gap-1.5 data-[state=active]:bg-background">
+            📚 Currently Borrowed
+          </TabsTrigger>
+          <TabsTrigger value="history" className="text-sm font-medium gap-1.5 data-[state=active]:bg-background">
+            📋 Transaction History
+          </TabsTrigger>
+        </TabsList>
 
-        {loading ? (
-          <div className="text-center text-muted-foreground text-sm py-20">Loading...</div>
-        ) : (
-          <div className="relative w-full max-w-[500px] mx-auto" style={{ aspectRatio: "1" }}>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
-              <span className="text-[32px]">📦</span>
-              <p className="text-xs text-muted-foreground font-mono mt-1">KIOSK</p>
-            </div>
+        <TabsContent value="kiosk">
+          <h1 className="font-serif text-[36px] font-black text-foreground tracking-tight mb-2 text-center">
+            Kiosk Compartment Status
+          </h1>
+          <p className="text-sm text-muted-foreground font-light text-center mb-12">
+            Live view of all 6 kiosk compartments · Click an occupied slot for details
+          </p>
 
-            {slots.map((slot, i) => {
-              const occupied = !!slot.book_name;
-              const pos = positions[i] || positions[0];
+          {loading ? (
+            <div className="text-center text-muted-foreground text-sm py-20">Loading...</div>
+          ) : (
+            <div className="relative w-full max-w-[500px] mx-auto" style={{ aspectRatio: "1" }}>
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
+                <span className="text-[32px]">📦</span>
+                <p className="text-xs text-muted-foreground font-mono mt-1">KIOSK</p>
+              </div>
 
-              return (
-                <div
-                  key={slot.id}
-                  onClick={() => handleSlotClick(slot)}
-                  className={`absolute w-[140px] rounded-2xl border-2 p-4 text-center transition-all shadow-md ${
-                    occupied
-                      ? "bg-accent/10 border-accent cursor-pointer hover:shadow-lg hover:scale-105"
-                      : "bg-muted/30 border-border opacity-60"
-                  }`}
-                  style={pos}
-                >
+              {slots.map((slot, i) => {
+                const occupied = !!slot.book_name;
+                const pos = positions[i] || positions[0];
+
+                return (
                   <div
-                    className={`text-2xl font-serif font-black mb-1 ${
-                      occupied ? "text-accent" : "text-muted-foreground"
+                    key={slot.id}
+                    onClick={() => handleSlotClick(slot)}
+                    className={`absolute w-[140px] rounded-2xl border-2 p-4 text-center transition-all shadow-md ${
+                      occupied
+                        ? "bg-accent/10 border-accent cursor-pointer hover:shadow-lg hover:scale-105"
+                        : "bg-muted/30 border-border opacity-60"
                     }`}
+                    style={pos}
                   >
-                    {slot.compartment}
-                  </div>
-                  <div
-                    className={`text-xs font-medium truncate ${
-                      occupied ? "text-foreground" : "text-muted-foreground italic"
-                    }`}
-                  >
-                    {slot.book_name || "Empty"}
-                  </div>
-                  {slot.returned_at && (
-                    <div className="text-[10px] text-muted-foreground font-mono mt-1.5">
-                      {new Date(slot.returned_at).toLocaleString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                    <div
+                      className={`text-2xl font-serif font-black mb-1 ${
+                        occupied ? "text-accent" : "text-muted-foreground"
+                      }`}
+                    >
+                      {slot.compartment}
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                    <div
+                      className={`text-xs font-medium truncate ${
+                        occupied ? "text-foreground" : "text-muted-foreground italic"
+                      }`}
+                    >
+                      {slot.book_name || "Empty"}
+                    </div>
+                    {slot.returned_at && (
+                      <div className="text-[10px] text-muted-foreground font-mono mt-1.5">
+                        {new Date(slot.returned_at).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
 
-      <CurrentlyBorrowedBooks />
+        <TabsContent value="borrowed">
+          <CurrentlyBorrowedBooks />
+        </TabsContent>
+
+        <TabsContent value="history">
+          <TransactionHistory />
+        </TabsContent>
+      </Tabs>
 
       <KioskCompartmentModal
         slot={selectedSlot}
