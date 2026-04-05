@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase-external";
 import { toast } from "sonner";
-import { RefreshCw, Search } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 type CombinedRecord = {
@@ -18,7 +18,6 @@ type CombinedRecord = {
 export default function CurrentlyBorrowedBooks() {
   const [records, setRecords] = useState<CombinedRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -127,28 +126,13 @@ export default function CurrentlyBorrowedBooks() {
           Refresh
         </button>
       </div>
-      <p className="text-sm text-muted-foreground font-light mb-4">
+      <p className="text-sm text-muted-foreground font-light mb-8">
         All books currently checked out — sorted by due date (most urgent first).
       </p>
 
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input
-          type="text"
-          placeholder="Search by book title or member name..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-secondary border border-border rounded-lg pl-9 pr-4 py-2.5 text-sm text-foreground outline-none transition-all focus:border-primary placeholder:text-muted-foreground/50"
-        />
-      </div>
-
       {loading ? (
         <div className="text-center text-muted-foreground text-sm py-10">Loading...</div>
-      ) : records.filter((r) => {
-        if (!search) return true;
-        const q = search.toLowerCase();
-        return r.book_title.toLowerCase().includes(q) || r.member_name.toLowerCase().includes(q);
-      }).length === 0 ? (
+      ) : records.length === 0 ? (
         <div className="text-center py-10 text-muted-foreground">
           <span className="text-4xl block mb-2 opacity-30">✅</span>
           <p className="text-sm font-light">No books currently borrowed.</p>
@@ -167,11 +151,7 @@ export default function CurrentlyBorrowedBooks() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {records.filter((r) => {
-                if (!search) return true;
-                const q = search.toLowerCase();
-                return r.book_title.toLowerCase().includes(q) || r.member_name.toLowerCase().includes(q);
-              }).map((r) => (
+              {records.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-serif text-foreground">{r.book_title}</TableCell>
                   <TableCell className="font-medium text-foreground">{r.member_name}</TableCell>
