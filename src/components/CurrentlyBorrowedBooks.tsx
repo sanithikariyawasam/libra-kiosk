@@ -180,6 +180,7 @@ export default function CurrentlyBorrowedBooks() {
                 <TableHead className="font-serif font-bold text-foreground">📅 Borrowed</TableHead>
                 <TableHead className="font-serif font-bold text-foreground">⏰ Due Date</TableHead>
                 <TableHead className="font-serif font-bold text-foreground">Status</TableHead>
+                <TableHead className="font-serif font-bold text-foreground text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -200,6 +201,15 @@ export default function CurrentlyBorrowedBooks() {
                         🟢 On Time
                       </span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <button
+                      onClick={() => handleReturn(r)}
+                      disabled={returning === r.id}
+                      className="bg-accent text-accent-foreground rounded-lg px-3 py-1.5 text-[11px] font-medium cursor-pointer transition-all font-sans hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {returning === r.id ? "Returning..." : "Mark as Returned"}
+                    </button>
                   </TableCell>
                 </TableRow>
               ))}
