@@ -19,6 +19,23 @@ export default function CurrentlyBorrowedBooks() {
   const [records, setRecords] = useState<CombinedRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [returning, setReturning] = useState<string | null>(null);
+
+  const handleReturn = async (record: CombinedRecord) => {
+    setReturning(record.id);
+    const now = new Date().toISOString();
+    const [borrowRes, bookRes] = await Promise.all([
+      supabase.from("borrowed_books").update({ returned_at: now }).eq("id", record.id),
+      supabase.from("books").update({ status: "available" }).eq("id", record.book_id),
+    ]);
+    if (borrowRes.error || bookRes.error) {
+      toast.error("Failed to mark as returned");
+    } else {
+      toast.success(`"${record.book_title}" marked as returned`);
+      await fetchRecords();
+    }
+    setReturning(null);
+  };
 
   const fetchRecords = async () => {
     setLoading(true);
