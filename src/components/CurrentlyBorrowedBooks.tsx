@@ -19,6 +19,23 @@ export default function CurrentlyBorrowedBooks() {
   const [records, setRecords] = useState<CombinedRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [returning, setReturning] = useState<string | null>(null);
+
+  const handleReturn = async (record: CombinedRecord) => {
+    setReturning(record.id);
+    const now = new Date().toISOString();
+    const [borrowRes, bookRes] = await Promise.all([
+      supabase.from("borrowed_books").update({ returned_at: now }).eq("id", record.id),
+      supabase.from("books").update({ status: "available" }).eq("id", record.book_id),
+    ]);
+    if (borrowRes.error || bookRes.error) {
+      toast.error("Failed to mark as returned");
+    } else {
+      toast.success(`"${record.book_title}" marked as returned`);
+      await fetchRecords();
+    }
+    setReturning(null);
+  };
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -163,6 +180,7 @@ export default function CurrentlyBorrowedBooks() {
                 <TableHead className="font-serif font-bold text-foreground">📅 Borrowed</TableHead>
                 <TableHead className="font-serif font-bold text-foreground">⏰ Due Date</TableHead>
                 <TableHead className="font-serif font-bold text-foreground">Status</TableHead>
+                <TableHead className="font-serif font-bold text-foreground text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -183,6 +201,15 @@ export default function CurrentlyBorrowedBooks() {
                         🟢 On Time
                       </span>
                     )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <button
+                      onClick={() => handleReturn(r)}
+                      disabled={returning === r.id}
+                      className="bg-accent text-accent-foreground rounded-lg px-3 py-1.5 text-[11px] font-medium cursor-pointer transition-all font-sans hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {returning === r.id ? "Returning..." : "Mark as Returned"}
+                    </button>
                   </TableCell>
                 </TableRow>
               ))}
