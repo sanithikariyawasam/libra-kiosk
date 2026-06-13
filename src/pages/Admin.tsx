@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import KioskCompartmentModal from "@/components/KioskCompartmentModal";
 import CurrentlyBorrowedBooks from "@/components/CurrentlyBorrowedBooks";
 import TransactionHistory from "@/components/admin/TransactionHistory";
+import RestrictedMembers from "@/components/admin/RestrictedMembers";
 
 type KioskSlot = {
   id: string;
