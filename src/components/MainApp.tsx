@@ -1,50 +1,56 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useLibrary } from "@/context/LibraryContext";
-import type { Book } from "@/context/LibraryContext";
 import BookCard from "@/components/BookCard";
 import ReserveModal from "@/components/ReserveModal";
 import ReserveBanner from "@/components/ReserveBanner";
+import MemberNotifications from "@/components/member/Notifications";
+import ActionBlockedModal from "@/components/member/ActionBlockedModal";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase-external";
 
 const ONE_HOUR = 60 * 60 * 1000;
-const ONE_WEEK = 7 * 24 * 60 * 60 * 1000;
+const TWO_WEEKS = 14 * 24 * 60 * 60 * 1000;
 
 export default function MainApp() {
   const {
     currentUser, books, logout, searchBooks, getMyBooks,
     reserveBook, startTimer, reserveSeconds, hasActiveReservation, reservedBookTitle,
+    refreshMember,
   } = useLibrary();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchType, setSearchType] = useState<"title" | "author">("title");
   const [searchResults, setSearchResults] = useState<typeof books | null>(null);
   const [modalBookId, setModalBookId] = useState<string | null>(null);
-  const [modalSource, setModalSource] = useState<"card" | "table">("card");
+  const [modalCompartment, setModalCompartment] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState(false);
+
+  useEffect(() => {
+    refreshMember();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSearch = () => {
-    if (!searchQuery.trim()) {
-      setSearchResults(null);
-      return;
-    }
+    if (!searchQuery.trim()) { setSearchResults(null); return; }
     setSearchResults(searchBooks(searchQuery.trim(), searchType));
   };
 
-  const handleReserve = async (bookId: string, source: "card" | "table" = "card") => {
+  const handleReserve = async (bookId: string) => {
+    if (!currentUser) return;
+    if (currentUser.status === "restricted") { setBlocked(true); return; }
+
     const book = books.find(b => b.id === bookId);
     if (!book) return;
 
+    let compartment: string | null = null;
     if (book.status === "kiosk") {
-      // Kiosk book: show confirmation modal
-      setModalBookId(bookId);
-      setModalSource(source);
-    } else {
-      // Available book: silently reserve for 1 week, no modal/countdown
-      await reserveBook(bookId, ONE_WEEK);
-      setSearchQuery("");
-      setSearchResults(null);
-      toast.success("Book reserved successfully!");
+      const { data } = await supabase.from("kiosk").select("compartment").eq("book_id", bookId).maybeSingle();
+      compartment = data?.compartment ?? null;
     }
+    setModalCompartment(compartment);
+    setModalBookId(bookId);
   };
 
   const confirmReserve = async () => {
@@ -52,14 +58,23 @@ export default function MainApp() {
     const book = books.find(b => b.id === modalBookId);
     if (!book) return;
 
-    const expiresAt = await reserveBook(modalBookId, ONE_HOUR);
-    startTimer();
+    const isKiosk = book.status === "kiosk";
+    const result = await reserveBook(
+      modalBookId,
+      isKiosk ? ONE_HOUR : TWO_WEEKS,
+      isKiosk ? "kiosk" : "library",
+      modalCompartment,
+    );
+    if (isKiosk) startTimer();
     setModalBookId(null);
     setSearchQuery("");
     setSearchResults(null);
 
-    const expiryStr = expiresAt.toLocaleString();
-    toast.success(`Book is in the kiosk! Scan your ID at kiosk to collect it. Expires: ${expiryStr}`);
+    if (isKiosk) {
+      toast.success(`✅ Reserved! Collect from LibraKiosk${modalCompartment ? ` · Compartment ${modalCompartment}` : ''} within 1 hour.`);
+    } else {
+      toast.success(`✅ Reserved! Collect from the Main Library within 2 weeks. Expires ${result?.expiresAt.toLocaleDateString()}.`);
+    }
   };
 
   const modalBook = modalBookId ? books.find(b => b.id === modalBookId) : null;
@@ -67,7 +82,6 @@ export default function MainApp() {
 
   return (
     <div className="min-h-screen bg-paper relative z-[1]">
-      {/* Header */}
       <header className="bg-ink text-cream px-10 flex items-center justify-between h-16 sticky top-0 z-[100]">
         <div className="flex items-center gap-2.5">
           <span className="text-xl">📚</span>
@@ -75,20 +89,24 @@ export default function MainApp() {
             LibraKiosk <span className="text-[10px] text-[hsl(37_33%_92%/0.4)] font-mono ml-1">UOM</span>
           </h2>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          <Link to="/member/reservations"
+            className="bg-[hsl(0_0%_100%/0.08)] border border-[hsl(0_0%_100%/0.12)] rounded-lg px-3.5 py-1.5 text-xs text-cream hover:bg-[hsl(0_0%_100%/0.15)]">
+            My Reservations
+          </Link>
           <div className="bg-[hsl(0_0%_100%/0.08)] border border-[hsl(0_0%_100%/0.12)] rounded-lg px-3.5 py-1.5 text-xs font-mono text-cream">
-            Logged in as <span className="text-accent-orange-light">{currentUser?.uni_id}</span>
+            {currentUser?.uni_id}
+            {currentUser?.status === "restricted" && (
+              <span className="ml-2 px-1.5 py-0.5 rounded-full bg-destructive text-white text-[9px] font-bold">RESTRICTED</span>
+            )}
           </div>
-          <button
-            onClick={logout}
-            className="bg-transparent border border-[hsl(0_0%_100%/0.2)] text-[hsl(37_33%_92%/0.6)] font-sans text-xs px-3.5 py-1.5 rounded-lg cursor-pointer transition-all hover:border-[hsl(0_0%_100%/0.4)] hover:text-cream"
-          >
+          <button onClick={logout}
+            className="bg-transparent border border-[hsl(0_0%_100%/0.2)] text-[hsl(37_33%_92%/0.6)] font-sans text-xs px-3.5 py-1.5 rounded-lg cursor-pointer transition-all hover:border-[hsl(0_0%_100%/0.4)] hover:text-cream">
             Sign out
           </button>
         </div>
       </header>
 
-      {/* Hero Search */}
       <div className="bg-cream border-b border-border py-12 px-10 text-center">
         <h1 className="font-serif text-[42px] font-black text-ink tracking-tight mb-2">
           Find your next <em className="italic text-accent-orange">read.</em>
@@ -97,32 +115,24 @@ export default function MainApp() {
           Search from our collection — reserve online, pick up at the kiosk.
         </p>
         <div className="flex max-w-[580px] mx-auto bg-paper border-[1.5px] border-border rounded-[14px] overflow-hidden shadow-[0_4px_20px_hsl(var(--shadow-color)/0.08)] transition-colors focus-within:border-accent-orange">
-          <select
-            value={searchType}
-            onChange={e => setSearchType(e.target.value as "title" | "author")}
-            className="bg-warm border-none border-r-[1.5px] border-r-border px-4 font-sans text-[13px] text-ink2 outline-none cursor-pointer min-w-[100px]"
-          >
+          <select value={searchType} onChange={e => setSearchType(e.target.value as "title" | "author")}
+            className="bg-warm border-none border-r-[1.5px] border-r-border px-4 font-sans text-[13px] text-ink2 outline-none cursor-pointer min-w-[100px]">
             <option value="title">Title</option>
             <option value="author">Author</option>
           </select>
-          <input
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleSearch()}
+          <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSearch()}
             placeholder="Search books..."
-            className="flex-1 border-none bg-transparent px-5 py-4 font-sans text-sm text-ink outline-none placeholder:text-border"
-          />
-          <button
-            onClick={handleSearch}
-            className="bg-accent-orange border-none text-primary-foreground px-6 font-sans text-[13px] font-medium cursor-pointer transition-colors tracking-[0.3px] hover:bg-[hsl(15_67%_40%)]"
-          >
+            className="flex-1 border-none bg-transparent px-5 py-4 font-sans text-sm text-ink outline-none placeholder:text-border" />
+          <button onClick={handleSearch}
+            className="bg-accent-orange border-none text-primary-foreground px-6 font-sans text-[13px] font-medium cursor-pointer transition-colors tracking-[0.3px] hover:bg-[hsl(15_67%_40%)]">
             Search
           </button>
         </div>
       </div>
 
-      {/* Content */}
       <div className="max-w-[900px] mx-auto px-10 py-9">
+        <MemberNotifications />
+
         {hasActiveReservation && (
           <ReserveBanner bookTitle={reservedBookTitle} seconds={reserveSeconds} />
         )}
@@ -139,7 +149,7 @@ export default function MainApp() {
                   <p className="text-sm font-light">No books found.</p>
                 </div>
               ) : (
-                searchResults.map(b => <BookCard key={b.id} book={b} onReserve={(id) => handleReserve(id, "card")} />)
+                searchResults.map(b => <BookCard key={b.id} book={b} onReserve={(id) => handleReserve(id)} />)
               )}
             </div>
           </div>
@@ -155,13 +165,12 @@ export default function MainApp() {
                   <p className="text-sm font-light">You have no borrowed books right now.</p>
                 </div>
               ) : (
-                myBooks.map(b => <BookCard key={b.id} book={b} onReserve={(id) => handleReserve(id, "card")} />)
+                myBooks.map(b => <BookCard key={b.id} book={b} onReserve={(id) => handleReserve(id)} />)
               )}
             </div>
           </div>
         )}
 
-        {/* All Books Table */}
         <div className="mt-10">
           <div className="font-mono text-[10px] text-muted-foreground tracking-[2px] uppercase mb-4">
             Full Library Catalog
@@ -184,6 +193,7 @@ export default function MainApp() {
                     kiosk: "text-blue-600 bg-blue-50",
                     reserved: "text-purple-600 bg-purple-50",
                     borrowed: "text-primary bg-primary/10",
+                    overdue: "text-destructive bg-destructive/10",
                   };
                   const isMine = currentUser?.borrowed?.includes(book.id);
                   const canReserve = (book.status === "available" || book.status === "kiosk") && !isMine;
@@ -202,14 +212,10 @@ export default function MainApp() {
                         {isMine ? (
                           <span className="text-[11px] text-muted-foreground font-mono">Your Book</span>
                         ) : canReserve ? (
-                          <button
-                            onClick={() => handleReserve(book.id, "table")}
+                          <button onClick={() => handleReserve(book.id)}
                             className={`rounded-lg px-4 py-1.5 text-[11px] font-medium cursor-pointer transition-all font-sans whitespace-nowrap ${
-                              book.status === "kiosk"
-                                ? "bg-blue-600 text-white hover:bg-blue-700"
-                                : "bg-green-600 text-white hover:bg-green-700"
-                            }`}
-                          >
+                              book.status === "kiosk" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-600 text-white hover:bg-green-700"
+                            }`}>
                             Reserve
                           </button>
                         ) : (
@@ -227,14 +233,18 @@ export default function MainApp() {
         </div>
       </div>
 
-      {/* Modal */}
       {modalBook && (
         <ReserveModal
-          bookTitle={`${modalBook.title} — ${modalBook.author}`}
+          type={modalBook.status === "kiosk" ? "kiosk" : "library"}
+          bookTitle={modalBook.title}
+          author={modalBook.author}
+          compartment={modalCompartment}
           onCancel={() => setModalBookId(null)}
           onConfirm={confirmReserve}
         />
       )}
+
+      <ActionBlockedModal open={blocked} onClose={() => setBlocked(false)} reason={currentUser?.restriction_reason} />
     </div>
   );
 }

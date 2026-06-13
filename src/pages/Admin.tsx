@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import KioskCompartmentModal from "@/components/KioskCompartmentModal";
 import CurrentlyBorrowedBooks from "@/components/CurrentlyBorrowedBooks";
 import TransactionHistory from "@/components/admin/TransactionHistory";
+import RestrictedMembers from "@/components/admin/RestrictedMembers";
 
 type KioskSlot = {
   id: string;
@@ -169,17 +170,13 @@ function KioskDashboard({ onLogout }: { onLogout: () => void }) {
             <TabsTrigger value="kiosk" className="text-sm font-medium px-5 py-2 rounded-lg">🏠 Kiosk Status</TabsTrigger>
             <TabsTrigger value="borrowed" className="text-sm font-medium px-5 py-2 rounded-lg">📚 Currently Borrowed</TabsTrigger>
             <TabsTrigger value="history" className="text-sm font-medium px-5 py-2 rounded-lg">📋 Transaction History</TabsTrigger>
+            <TabsTrigger value="restrictions" className="text-sm font-medium px-5 py-2 rounded-lg">🚫 Restrictions</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="kiosk">
-            <KioskStatus />
-          </TabsContent>
-          <TabsContent value="borrowed">
-            <CurrentlyBorrowedBooks />
-          </TabsContent>
-          <TabsContent value="history">
-            <TransactionHistory />
-          </TabsContent>
+          <TabsContent value="kiosk"><KioskStatus /></TabsContent>
+          <TabsContent value="borrowed"><CurrentlyBorrowedBooks /></TabsContent>
+          <TabsContent value="history"><TransactionHistory /></TabsContent>
+          <TabsContent value="restrictions"><RestrictedMembers /></TabsContent>
         </Tabs>
       </div>
     </div>

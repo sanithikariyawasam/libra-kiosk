@@ -23,14 +23,28 @@ export default function CurrentlyBorrowedBooks() {
 
   const handleReturn = async (record: CombinedRecord) => {
     setReturning(record.id);
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const wasOverdue = record.due_date ? new Date(record.due_date) < now : false;
+    const daysOverdue = wasOverdue && record.due_date
+      ? Math.max(1, Math.ceil((now.getTime() - new Date(record.due_date).getTime()) / (1000 * 60 * 60 * 24)))
+      : 0;
+
     const [borrowRes, bookRes] = await Promise.all([
-      supabase.from("borrowed_books").update({ returned_at: now }).eq("id", record.id),
+      supabase.from("borrowed_books").update({ returned_at: nowIso }).eq("id", record.id),
       supabase.from("books").update({ status: "available" }).eq("id", record.book_id),
     ]);
     if (borrowRes.error || bookRes.error) {
       toast.error("Failed to mark as returned");
     } else {
+      // If this return clears an overdue book, record on restriction_history (keep member restricted)
+      if (wasOverdue) {
+        await supabase.from("restriction_history")
+          .update({ return_date: nowIso, days_overdue: daysOverdue, reason: "Overdue Return" })
+          .eq("member_id", record.member_id)
+          .eq("book_id", record.book_id)
+          .eq("status", "active");
+      }
       toast.success(`"${record.book_title}" marked as returned`);
       await fetchRecords();
     }

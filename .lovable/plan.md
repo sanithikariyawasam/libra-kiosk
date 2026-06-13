@@ -1,33 +1,99 @@
+# LibraKiosk: Restrictions + Reservation Management
 
+This is a large, multi-area change. Below is the proposed scope, broken into deliverables. After approval I'll execute end-to-end.
 
-## Plan: Connect Frontend to Your External Supabase Project
+## 1. Database changes (one migration)
 
-This project currently uses Lovable Cloud's built-in database. Since Lovable Cloud cannot be disconnected, the approach is to create a **separate Supabase client** that points to your external project, and have all app code use that client instead.
+Add columns and tables on the external Supabase project (`skidrbtiqaouhnvyyiox`). Per project rules, I'll add `due_date` to `borrowed_books` if missing and use it consistently.
 
-### What changes
+**`members` — new columns**
+- `status` ('active' | 'restricted'), default 'active'
+- `restriction_reason` text nullable
+- `restricted_at` timestamptz nullable
 
-1. **Create a new client file** (`src/lib/supabase-external.ts`)
-   - Hardcode your external Supabase URL and publishable key (publishable keys are safe to store in code)
-   - Export a `supabase` client instance from this file
+**`reservations` — new columns**
+- `status` ('active' | 'collected' | 'cancelled' | 'expired'), default 'active'
+- `type` ('library' | 'kiosk'), default 'library'
+- `compartment` text nullable
+- `cancelled_at` timestamptz nullable
+- `cancellation_reason` text nullable
 
-2. **Update `LibraryContext.tsx`**
-   - Change the import from `@/integrations/supabase/client` to `@/lib/supabase-external`
-   - Adjust the `reserveBook` function: your external `reservations` table does not have an `expires_at` column, so remove that field from the insert
+**New `restriction_history` table**
+- id, member_id, uni_id, member_name, book_id, book_title
+- reason, due_date, return_date, days_overdue
+- status ('active' | 'cleared')
+- restricted_at, cleared_at, cleared_by_admin (email)
 
-3. **Update `scan-return` edge function**
-   - The edge function runs on Lovable Cloud's backend and uses `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` env vars, which point to the Lovable Cloud database
-   - Since the ESP32 needs to talk to **your** external Supabase, the ESP32 should call your external Supabase edge functions directly (not Lovable's)
-   - Alternatively, we can hardcode your external Supabase URL in the edge function and store your external service role key as a secret — but this means the edge function still runs on Lovable's infrastructure while talking to your database
+**New `reservation_history` table**
+- id, member_id, book_id, type, reserved_at, expires_at
+- status, cancelled_at, cancellation_reason
 
-### Important notes
+All new tables get appropriate public read/write policies consistent with current schema.
 
-- Your external `reservations` table has columns `(id, member_id, book_id)` — no `expires_at`. The reservation insert will be adjusted accordingly.
-- The realtime subscription will only work if your external Supabase project has realtime enabled for the `books` table. You may need to run `ALTER PUBLICATION supabase_realtime ADD TABLE public.books;` in your external project's SQL editor.
-- The key you provided (`sb_publishable_QM1ZH0bsaHT4oiXuu1SXkA_BE-KZPMQ`) looks like a non-standard format. Typical Supabase anon keys are JWTs (long base64 strings starting with `eyJ...`). Please verify this is the correct anon/publishable key from your Supabase project settings (Settings → API → anon public key).
+## 2. Automatic overdue detection
 
-### Files modified
-| File | Change |
-|------|--------|
-| `src/lib/supabase-external.ts` | New file — external Supabase client |
-| `src/context/LibraryContext.tsx` | Switch import + remove `expires_at` from reservation insert |
+Implemented client-side on dashboard load + admin refresh (no cron needed for prototype):
+- For each `borrowed_books` row where `returned_at` is null and `due_date < now()`: set book `status='overdue'`, set member `status='restricted'`, insert `restriction_history` row if not already active.
+- On Mark-as-Returned for an overdue book: compute days_overdue, update history with return_date + days_overdue, change reason to "Overdue Return", keep member restricted.
 
+## 3. Member Dashboard
+
+`src/components/MainApp.tsx` (or a new `MemberDashboard.tsx`) gets a Notifications section at top:
+- Red **Account Restricted** banner (if member.status='restricted') with reason, book, due date, days overdue.
+- Red **Overdue Book** cards.
+- Yellow **Due Soon** cards (≤3 days remaining).
+- Reserve/Borrow actions: don't hide — when restricted, clicking shows an "Action Failed" modal.
+
+## 4. My Reservations page
+
+New `src/pages/MyReservations.tsx` linked from member nav:
+- Lists active reservations with status badges (Active/Collected/Cancelled/Expired — color coded).
+- Library: shows weeks/days remaining. Kiosk: live MM:SS countdown + compartment.
+- **Cancel Reservation** button with confirm modal → sets reservation status='cancelled', book back to 'available', clears compartment if kiosk, writes `reservation_history`.
+- Client-side expiration check: when timer hits 0, mark expired + free book/compartment.
+
+## 5. Reservation popups
+
+Update `ReserveModal.tsx` (and add a kiosk variant or branch) to show:
+- Library: 2 weeks period, pickup = Main Library.
+- Kiosk: 1 hour period, compartment, pickup = LibraKiosk.
+- Post-confirm success toast/modal with collection info.
+
+Library reservation duration changes from existing 1-week shelf to **2 weeks** per spec.
+
+## 6. Admin Dashboard
+
+Add 4th tab **🚫 Restrictions** in `src/pages/Admin.tsx`:
+- Stats row: Active Restricted, Due Soon, Overdue, Cleared This Month.
+- Table: Student ID, Name, Book, Reason, Due Date, Return Date, Days Overdue, Status.
+- Search by uni_id/name; filter Active/Cleared; sort by days overdue or restriction date.
+- Row click → details drawer/modal with full info, restriction history for member, and **Remove Restriction** button → sets member active, marks history cleared with admin email + timestamp.
+
+## 7. Design
+
+Reuse existing paper aesthetic. Status colors:
+- Red = restriction/overdue, Yellow = due soon, Orange = overdue warning card, Green = cleared/active OK, Blue = reservation info.
+
+## Files to create
+- `src/pages/MyReservations.tsx`
+- `src/components/member/Notifications.tsx`
+- `src/components/member/RestrictionBanner.tsx`
+- `src/components/member/ActionBlockedModal.tsx`
+- `src/components/admin/RestrictedMembers.tsx`
+- `src/components/admin/RestrictionDetailsModal.tsx`
+- `src/lib/overdue.ts` (shared detection helper)
+
+## Files to edit
+- `src/App.tsx` (route `/member/reservations`)
+- `src/context/LibraryContext.tsx` (status, reservation flows, cancel, expiration)
+- `src/components/MainApp.tsx` (notifications, blocked actions)
+- `src/components/ReserveModal.tsx` (2-week library, kiosk variant)
+- `src/pages/Admin.tsx` (4th tab)
+- `src/integrations/supabase/types.ts` (auto-regen after migration)
+
+## Out of scope (confirm if you want included)
+- Server-side cron for expirations (currently handled lazily on load).
+- Email/SMS notifications.
+- Renew-book flow (spec mentions "renew" but doesn't define it).
+
+Approve and I'll run the migration first, then implement all UI/logic.

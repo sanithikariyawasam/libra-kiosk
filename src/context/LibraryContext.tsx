@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase-external";
+import { detectAndApplyRestrictions } from "@/lib/overdue";
 
-export type BookStatus = 'available' | 'borrowed' | 'reserved' | 'kiosk';
+export type BookStatus = 'available' | 'borrowed' | 'reserved' | 'kiosk' | 'overdue';
 
 export interface Book {
   id: string;
@@ -18,6 +19,20 @@ export interface Member {
   name: string;
   rfid_tag: string | null;
   borrowed: string[];
+  status: 'active' | 'restricted';
+  restriction_reason: string | null;
+  restricted_at: string | null;
+}
+
+export interface Reservation {
+  id: string;
+  book_id: string;
+  member_id: string;
+  reserved_at: string;
+  expires_at: string;
+  status: 'active' | 'collected' | 'cancelled' | 'expired';
+  type: 'library' | 'kiosk';
+  compartment: string | null;
 }
 
 interface LibraryContextType {
@@ -30,7 +45,9 @@ interface LibraryContextType {
   logout: () => void;
   searchBooks: (query: string, type: "title" | "author") => Book[];
   getMyBooks: () => Book[];
-  reserveBook: (bookId: string, durationMs: number) => Promise<Date>;
+  reserveBook: (bookId: string, durationMs: number, type: 'library' | 'kiosk', compartment?: string | null) => Promise<{ expiresAt: Date; reservationId: string } | null>;
+  cancelReservation: (reservationId: string, bookId: string, compartment: string | null) => Promise<void>;
+  refreshMember: () => Promise<void>;
   startTimer: () => void;
   stopTimer: () => void;
   loading: boolean;
@@ -47,78 +64,74 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const [timerInterval, setTimerInterval] = useState<ReturnType<typeof setInterval> | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Fetch books on mount + subscribe to realtime changes
   useEffect(() => {
     const fetchBooks = async () => {
       const { data } = await supabase.from("books").select("*");
       if (data) {
-        setBooks(data.map(b => ({
-          id: b.id,
-          title: b.title,
-          author: b.author,
-          rfid_tag: b.rfid_tag,
-          status: b.status as BookStatus,
-          due_date: b.due_date,
+        setBooks(data.map((b: any) => ({
+          id: b.id, title: b.title, author: b.author, rfid_tag: b.rfid_tag,
+          status: b.status as BookStatus, due_date: b.due_date,
         })));
       }
     };
     fetchBooks();
 
-    // Realtime: update books when ESP32 processes a scan
     const channel = supabase
       .channel("books-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "books" },
-        (payload) => {
-          if (payload.eventType === "UPDATE") {
-            const updated = payload.new as any;
-            setBooks(prev =>
-              prev.map(b =>
-                b.id === updated.id
-                  ? { ...b, status: updated.status as BookStatus, due_date: updated.due_date }
-                  : b
-              )
-            );
-          }
+      .on("postgres_changes", { event: "*", schema: "public", table: "books" }, (payload: any) => {
+        if (payload.eventType === "UPDATE") {
+          const updated = payload.new;
+          setBooks(prev => prev.map(b => b.id === updated.id
+            ? { ...b, status: updated.status as BookStatus, due_date: updated.due_date }
+            : b));
         }
-      )
+      })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, []);
+
+  const refreshMember = useCallback(async () => {
+    if (!currentUser) return;
+    await detectAndApplyRestrictions(currentUser.id);
+    const { data: m } = await supabase.from("members").select("*").eq("id", currentUser.id).maybeSingle();
+    const { data: borrowedData } = await supabase
+      .from("borrowed_books").select("book_id").eq("member_id", currentUser.id).is("returned_at", null);
+    if (m) {
+      setCurrentUser({
+        id: m.id, uni_id: m.uni_id, name: m.name, rfid_tag: m.rfid_tag ?? null,
+        borrowed: borrowedData?.map((b: any) => b.book_id) ?? [],
+        status: (m.status ?? 'active') as 'active' | 'restricted',
+        restriction_reason: m.restriction_reason ?? null,
+        restricted_at: m.restricted_at ?? null,
+      });
+    }
+  }, [currentUser]);
 
   const login = useCallback(async (uniId: string, password: string): Promise<string | null> => {
     setLoading(true);
     try {
       const { data: member } = await supabase
-        .from("members")
-        .select("*")
-        .eq("uni_id", uniId)
-        .eq("password_hash", password)
-        .maybeSingle();
-
+        .from("members").select("*").eq("uni_id", uniId).eq("password_hash", password).maybeSingle();
       if (!member) return "Invalid ID or password. Try again.";
 
-      // Fetch borrowed books for this member
+      // Apply automatic restriction detection at login
+      await detectAndApplyRestrictions(member.id);
+      const { data: refreshed } = await supabase.from("members").select("*").eq("id", member.id).maybeSingle();
+      const m = refreshed ?? member;
+
       const { data: borrowedData } = await supabase
-        .from("borrowed_books")
-        .select("book_id")
-        .eq("member_id", member.id);
+        .from("borrowed_books").select("book_id").eq("member_id", m.id).is("returned_at", null);
 
       setCurrentUser({
-        id: member.id,
-        uni_id: member.uni_id,
-        name: member.name,
-        rfid_tag: member.rfid_tag ?? null,
-        borrowed: borrowedData?.map(b => b.book_id) ?? [],
+        id: m.id, uni_id: m.uni_id, name: m.name, rfid_tag: m.rfid_tag ?? null,
+        borrowed: borrowedData?.map((b: any) => b.book_id) ?? [],
+        status: (m.status ?? 'active') as 'active' | 'restricted',
+        restriction_reason: m.restriction_reason ?? null,
+        restricted_at: m.restricted_at ?? null,
       });
       return null;
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }, []);
 
   const logout = useCallback(() => {
@@ -131,9 +144,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
 
   const searchBooks = useCallback((query: string, type: "title" | "author"): Book[] => {
     const q = query.toLowerCase();
-    return books.filter(b =>
-      type === "title" ? b.title.toLowerCase().includes(q) : b.author.toLowerCase().includes(q)
-    );
+    return books.filter(b => type === "title" ? b.title.toLowerCase().includes(q) : b.author.toLowerCase().includes(q));
   }, [books]);
 
   const getMyBooks = useCallback((): Book[] => {
@@ -141,42 +152,72 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     return books.filter(b => currentUser.borrowed.includes(b.id));
   }, [currentUser, books]);
 
-  const reserveBook = useCallback(async (bookId: string, durationMs: number): Promise<Date> => {
+  const reserveBook = useCallback(async (
+    bookId: string, durationMs: number, type: 'library' | 'kiosk', compartment: string | null = null,
+  ) => {
+    if (!currentUser) return null;
     const expiresAt = new Date(Date.now() + durationMs);
 
-    // Update book status in DB
     await supabase.from("books").update({ status: "reserved" }).eq("id", bookId);
 
-    // Insert reservation with expires_at
-    if (currentUser) {
-      await supabase.from("reservations").insert({
-        member_id: currentUser.id,
-        book_id: bookId,
-        expires_at: expiresAt.toISOString(),
-      });
-    }
+    const { data: insertData } = await supabase.from("reservations").insert({
+      member_id: currentUser.id,
+      book_id: bookId,
+      expires_at: expiresAt.toISOString(),
+      status: 'active',
+      type,
+      compartment,
+    }).select("id").single();
+
+    await supabase.from("reservation_history").insert({
+      reservation_id: insertData?.id ?? null,
+      member_id: currentUser.id,
+      book_id: bookId,
+      type,
+      expires_at: expiresAt.toISOString(),
+      status: 'active',
+    });
 
     setBooks(prev => prev.map(b => b.id === bookId ? { ...b, status: "reserved" as const } : b));
+
     const book = books.find(b => b.id === bookId);
-    // Only show countdown banner for kiosk books (1-hour reservations)
-    const isKiosk = book?.status === "kiosk";
-    if (book && isKiosk) {
+    if (book && type === 'kiosk') {
       setReservedBookTitle(book.title);
       setHasActiveReservation(true);
       setReserveSeconds(Math.floor(durationMs / 1000));
     }
-    return expiresAt;
+    return { expiresAt, reservationId: insertData?.id ?? '' };
   }, [books, currentUser]);
+
+  const cancelReservation = useCallback(async (reservationId: string, bookId: string, compartment: string | null) => {
+    const now = new Date().toISOString();
+    await supabase.from("reservations").update({
+      status: 'cancelled', cancelled_at: now, cancellation_reason: 'Member cancelled',
+    }).eq("id", reservationId);
+
+    // Release book — if it was in a kiosk compartment, keep it in kiosk state, else available
+    if (compartment) {
+      await supabase.from("books").update({ status: "kiosk" }).eq("id", bookId);
+    } else {
+      await supabase.from("books").update({ status: "available" }).eq("id", bookId);
+    }
+
+    await supabase.from("reservation_history").insert({
+      reservation_id: reservationId,
+      member_id: currentUser?.id,
+      book_id: bookId,
+      type: compartment ? 'kiosk' : 'library',
+      status: 'cancelled',
+      cancelled_at: now,
+      cancellation_reason: 'Member cancelled',
+    });
+  }, [currentUser]);
 
   const startTimer = useCallback(() => {
     if (timerInterval) clearInterval(timerInterval);
     const interval = setInterval(() => {
       setReserveSeconds(prev => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          setHasActiveReservation(false);
-          return 0;
-        }
+        if (prev <= 1) { clearInterval(interval); setHasActiveReservation(false); return 0; }
         return prev - 1;
       });
     }, 1000);
@@ -191,7 +232,8 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   return (
     <LibraryContext.Provider value={{
       currentUser, books, reserveSeconds, hasActiveReservation, reservedBookTitle,
-      login, logout, searchBooks, getMyBooks, reserveBook, startTimer, stopTimer, loading,
+      login, logout, searchBooks, getMyBooks, reserveBook, cancelReservation, refreshMember,
+      startTimer, stopTimer, loading,
     }}>
       {children}
     </LibraryContext.Provider>
