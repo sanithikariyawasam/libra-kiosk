@@ -1,5 +1,6 @@
 import { useLibrary, type Book } from "@/context/LibraryContext";
 import { isOverdue, daysUntil } from "@/lib/overdue";
+import RestrictionBanner from "./RestrictionBanner";
 
 export default function MemberNotifications() {
   const { currentUser, books } = useLibrary();
@@ -13,26 +14,9 @@ export default function MemberNotifications() {
     return d !== null && d <= 3;
   });
 
-  const restricted = currentUser.status === "restricted";
-  if (!restricted && overdue.length === 0 && dueSoon.length === 0) return null;
-
   return (
-    <div className="flex flex-col gap-3 mb-6">
-      {restricted && (
-        <div className="border-2 border-destructive bg-destructive/10 rounded-[14px] p-5">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-2xl">🚫</span>
-            <h3 className="font-serif text-lg font-bold text-destructive">ACCOUNT RESTRICTED</h3>
-          </div>
-          <p className="text-sm text-ink mb-2">
-            Your account is currently restricted{currentUser.restriction_reason ? ` — ${currentUser.restriction_reason}` : ''}.
-          </p>
-          <p className="text-xs text-ink2">
-            You cannot borrow books or create new reservations until a librarian removes this restriction.
-            You can still view your account and cancel existing reservations.
-          </p>
-        </div>
-      )}
+    <div className="flex flex-col gap-3 mb-2">
+      <RestrictionBanner />
 
       {overdue.map((b) => {
         const daysOver = Math.abs(daysUntil(b.due_date) ?? 0);
