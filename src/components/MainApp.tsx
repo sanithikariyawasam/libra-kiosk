@@ -1,23 +1,20 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState, useCallback } from "react";
 import { useLibrary } from "@/context/LibraryContext";
 import BookCard from "@/components/BookCard";
 import ReserveModal from "@/components/ReserveModal";
-import ReserveBanner from "@/components/ReserveBanner";
 import MemberNotifications from "@/components/member/Notifications";
 import ActionBlockedModal from "@/components/member/ActionBlockedModal";
+import ActiveReservation from "@/components/member/ActiveReservation";
+import KioskStatusGrid from "@/components/member/KioskStatusGrid";
+import { useActiveRestriction, buildRestrictionMessage } from "@/components/member/RestrictionBanner";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase-external";
 
-const ONE_HOUR = 60 * 60 * 1000;
-const TWO_WEEKS = 14 * 24 * 60 * 60 * 1000;
-
 export default function MainApp() {
   const {
     currentUser, books, logout, searchBooks, getMyBooks,
-    reserveBook, startTimer, reserveSeconds, hasActiveReservation, reservedBookTitle,
-    refreshMember,
+    reserveBook, startTimer, refreshMember, hasExistingActiveReservation,
   } = useLibrary();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -25,7 +22,10 @@ export default function MainApp() {
   const [searchResults, setSearchResults] = useState<typeof books | null>(null);
   const [modalBookId, setModalBookId] = useState<string | null>(null);
   const [modalCompartment, setModalCompartment] = useState<string | null>(null);
-  const [blocked, setBlocked] = useState(false);
+  const [blocked, setBlocked] = useState<{ open: boolean; customMessage?: string }>({ open: false });
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const activeRestriction = useActiveRestriction();
 
   useEffect(() => {
     refreshMember();
@@ -37,44 +37,47 @@ export default function MainApp() {
     setSearchResults(searchBooks(searchQuery.trim(), searchType));
   };
 
-  const handleReserve = async (bookId: string) => {
+  const triggerReserve = useCallback(async (bookId: string, compartmentHint?: string) => {
     if (!currentUser) return;
-    if (currentUser.status === "restricted") { setBlocked(true); return; }
+    if (currentUser.status === "restricted") {
+      setBlocked({ open: true });
+      return;
+    }
+    const existing = await hasExistingActiveReservation();
+    if (existing) {
+      setBlocked({
+        open: true,
+        customMessage: "You already have an active reservation. Please cancel it before reserving another book.",
+      });
+      return;
+    }
 
-    const book = books.find(b => b.id === bookId);
-    if (!book) return;
-
-    let compartment: string | null = null;
-    if (book.status === "kiosk") {
+    let compartment = compartmentHint ?? null;
+    if (!compartment) {
       const { data } = await supabase.from("kiosk").select("compartment").eq("book_id", bookId).maybeSingle();
       compartment = data?.compartment ?? null;
     }
+    if (!compartment) {
+      toast.error("This book is not currently in the kiosk and cannot be reserved.");
+      return;
+    }
     setModalCompartment(compartment);
     setModalBookId(bookId);
-  };
+  }, [currentUser, hasExistingActiveReservation]);
 
   const confirmReserve = async () => {
-    if (!modalBookId) return;
+    if (!modalBookId || !modalCompartment) return;
     const book = books.find(b => b.id === modalBookId);
     if (!book) return;
 
-    const isKiosk = book.status === "kiosk";
-    const result = await reserveBook(
-      modalBookId,
-      isKiosk ? ONE_HOUR : TWO_WEEKS,
-      isKiosk ? "kiosk" : "library",
-      modalCompartment,
-    );
-    if (isKiosk) startTimer();
+    await reserveBook(modalBookId, modalCompartment);
+    startTimer();
     setModalBookId(null);
     setSearchQuery("");
     setSearchResults(null);
+    setRefreshKey(k => k + 1);
 
-    if (isKiosk) {
-      toast.success(`✅ Reserved! Collect from LibraKiosk${modalCompartment ? ` · Compartment ${modalCompartment}` : ''} within 1 hour.`);
-    } else {
-      toast.success(`✅ Reserved! Collect from the Main Library within 2 weeks. Expires ${result?.expiresAt.toLocaleDateString()}.`);
-    }
+    toast.success(`✅ Reserved! Collect from LibraKiosk · Compartment ${modalCompartment} within 1 hour.`);
   };
 
   const modalBook = modalBookId ? books.find(b => b.id === modalBookId) : null;
@@ -90,10 +93,6 @@ export default function MainApp() {
           </h2>
         </div>
         <div className="flex items-center gap-3">
-          <Link to="/member/reservations"
-            className="bg-[hsl(0_0%_100%/0.08)] border border-[hsl(0_0%_100%/0.12)] rounded-lg px-3.5 py-1.5 text-xs text-cream hover:bg-[hsl(0_0%_100%/0.15)]">
-            My Reservations
-          </Link>
           <div className="bg-[hsl(0_0%_100%/0.08)] border border-[hsl(0_0%_100%/0.12)] rounded-lg px-3.5 py-1.5 text-xs font-mono text-cream">
             {currentUser?.uni_id}
             {currentUser?.status === "restricted" && (
@@ -133,9 +132,7 @@ export default function MainApp() {
       <div className="max-w-[900px] mx-auto px-10 py-9">
         <MemberNotifications />
 
-        {hasActiveReservation && (
-          <ReserveBanner bookTitle={reservedBookTitle} seconds={reserveSeconds} />
-        )}
+        <ActiveReservation refreshKey={refreshKey} onChange={() => setRefreshKey(k => k + 1)} />
 
         {searchResults !== null ? (
           <div>
@@ -149,7 +146,7 @@ export default function MainApp() {
                   <p className="text-sm font-light">No books found.</p>
                 </div>
               ) : (
-                searchResults.map(b => <BookCard key={b.id} book={b} onReserve={(id) => handleReserve(id)} />)
+                searchResults.map(b => <BookCard key={b.id} book={b} onReserve={(id) => triggerReserve(id)} />)
               )}
             </div>
           </div>
@@ -165,11 +162,13 @@ export default function MainApp() {
                   <p className="text-sm font-light">You have no borrowed books right now.</p>
                 </div>
               ) : (
-                myBooks.map(b => <BookCard key={b.id} book={b} onReserve={(id) => handleReserve(id)} />)
+                myBooks.map(b => <BookCard key={b.id} book={b} onReserve={(id) => triggerReserve(id)} />)
               )}
             </div>
           </div>
         )}
+
+        <KioskStatusGrid refreshKey={refreshKey} onReserve={(bookId, comp) => triggerReserve(bookId, comp)} />
 
         <div className="mt-10">
           <div className="font-mono text-[10px] text-muted-foreground tracking-[2px] uppercase mb-4">
@@ -196,7 +195,7 @@ export default function MainApp() {
                     overdue: "text-destructive bg-destructive/10",
                   };
                   const isMine = currentUser?.borrowed?.includes(book.id);
-                  const canReserve = (book.status === "available" || book.status === "kiosk") && !isMine;
+                  const canReserve = book.status === "kiosk" && !isMine;
 
                   return (
                     <TableRow key={book.id} className="hover:bg-secondary/30">
@@ -212,10 +211,8 @@ export default function MainApp() {
                         {isMine ? (
                           <span className="text-[11px] text-muted-foreground font-mono">Your Book</span>
                         ) : canReserve ? (
-                          <button onClick={() => handleReserve(book.id)}
-                            className={`rounded-lg px-4 py-1.5 text-[11px] font-medium cursor-pointer transition-all font-sans whitespace-nowrap ${
-                              book.status === "kiosk" ? "bg-blue-600 text-white hover:bg-blue-700" : "bg-green-600 text-white hover:bg-green-700"
-                            }`}>
+                          <button onClick={() => triggerReserve(book.id)}
+                            className="rounded-lg px-4 py-1.5 text-[11px] font-medium cursor-pointer transition-all font-sans whitespace-nowrap bg-blue-600 text-white hover:bg-blue-700">
                             Reserve
                           </button>
                         ) : (
@@ -235,7 +232,6 @@ export default function MainApp() {
 
       {modalBook && (
         <ReserveModal
-          type={modalBook.status === "kiosk" ? "kiosk" : "library"}
           bookTitle={modalBook.title}
           author={modalBook.author}
           compartment={modalCompartment}
@@ -244,7 +240,12 @@ export default function MainApp() {
         />
       )}
 
-      <ActionBlockedModal open={blocked} onClose={() => setBlocked(false)} reason={currentUser?.restriction_reason} />
+      <ActionBlockedModal
+        open={blocked.open}
+        onClose={() => setBlocked({ open: false })}
+        restriction={activeRestriction}
+        customMessage={blocked.customMessage}
+      />
     </div>
   );
 }

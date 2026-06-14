@@ -62,7 +62,7 @@ export async function detectAndApplyRestrictions(memberId: string) {
       .from("members")
       .update({
         status: "restricted",
-        restriction_reason: "Active Overdue Book",
+        restriction_reason: "Book not returned by due date",
         restricted_at: new Date().toISOString(),
       })
       .eq("id", memberId);
@@ -86,14 +86,19 @@ export async function detectAndApplyRestrictions(memberId: string) {
       .eq("id", row.book_id)
       .maybeSingle();
 
+    const daysOver = row.due_date
+      ? Math.max(1, Math.ceil((Date.now() - new Date(row.due_date).getTime()) / (1000 * 60 * 60 * 24)))
+      : 0;
+
     await supabase.from("restriction_history").insert({
       member_id: memberId,
       uni_id: member?.uni_id ?? null,
       member_name: member?.name ?? null,
       book_id: row.book_id,
       book_title: book?.title ?? null,
-      reason: "Active Overdue Book",
+      reason: "Book not returned by due date",
       due_date: row.due_date,
+      days_overdue: daysOver,
       status: "active",
       restricted_at: new Date().toISOString(),
     });

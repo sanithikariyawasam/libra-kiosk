@@ -31,7 +31,7 @@ export interface Reservation {
   reserved_at: string;
   expires_at: string;
   status: 'active' | 'collected' | 'cancelled' | 'expired';
-  type: 'library' | 'kiosk';
+  type: 'kiosk';
   compartment: string | null;
 }
 
@@ -45,8 +45,9 @@ interface LibraryContextType {
   logout: () => void;
   searchBooks: (query: string, type: "title" | "author") => Book[];
   getMyBooks: () => Book[];
-  reserveBook: (bookId: string, durationMs: number, type: 'library' | 'kiosk', compartment?: string | null) => Promise<{ expiresAt: Date; reservationId: string } | null>;
+  reserveBook: (bookId: string, compartment: string) => Promise<{ expiresAt: Date; reservationId: string } | null>;
   cancelReservation: (reservationId: string, bookId: string, compartment: string | null) => Promise<void>;
+  hasExistingActiveReservation: () => Promise<boolean>;
   refreshMember: () => Promise<void>;
   startTimer: () => void;
   stopTimer: () => void;
@@ -152,11 +153,22 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     return books.filter(b => currentUser.borrowed.includes(b.id));
   }, [currentUser, books]);
 
-  const reserveBook = useCallback(async (
-    bookId: string, durationMs: number, type: 'library' | 'kiosk', compartment: string | null = null,
-  ) => {
+  const ONE_HOUR_MS = 60 * 60 * 1000;
+
+  const hasExistingActiveReservation = useCallback(async () => {
+    if (!currentUser) return false;
+    const { data } = await supabase
+      .from("reservations")
+      .select("id")
+      .eq("member_id", currentUser.id)
+      .eq("status", "active")
+      .limit(1);
+    return (data?.length ?? 0) > 0;
+  }, [currentUser]);
+
+  const reserveBook = useCallback(async (bookId: string, compartment: string) => {
     if (!currentUser) return null;
-    const expiresAt = new Date(Date.now() + durationMs);
+    const expiresAt = new Date(Date.now() + ONE_HOUR_MS);
 
     await supabase.from("books").update({ status: "reserved" }).eq("id", bookId);
 
@@ -165,55 +177,33 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
       book_id: bookId,
       expires_at: expiresAt.toISOString(),
       status: 'active',
-      type,
+      type: 'kiosk',
       compartment,
     }).select("id").single();
-
-    await supabase.from("reservation_history").insert({
-      reservation_id: insertData?.id ?? null,
-      member_id: currentUser.id,
-      book_id: bookId,
-      type,
-      expires_at: expiresAt.toISOString(),
-      status: 'active',
-    });
 
     setBooks(prev => prev.map(b => b.id === bookId ? { ...b, status: "reserved" as const } : b));
 
     const book = books.find(b => b.id === bookId);
-    if (book && type === 'kiosk') {
+    if (book) {
       setReservedBookTitle(book.title);
       setHasActiveReservation(true);
-      setReserveSeconds(Math.floor(durationMs / 1000));
+      setReserveSeconds(3600);
     }
     return { expiresAt, reservationId: insertData?.id ?? '' };
   }, [books, currentUser]);
 
-  const cancelReservation = useCallback(async (reservationId: string, bookId: string, compartment: string | null) => {
+  const cancelReservation = useCallback(async (reservationId: string, bookId: string, _compartment: string | null) => {
     const now = new Date().toISOString();
     await supabase.from("reservations").update({
       status: 'cancelled', cancelled_at: now, cancellation_reason: 'Member cancelled',
     }).eq("id", reservationId);
-
-    // Release book — if it was in a kiosk compartment, keep it in kiosk state, else available
-    if (compartment) {
-      await supabase.from("books").update({ status: "kiosk" }).eq("id", bookId);
-    } else {
-      await supabase.from("books").update({ status: "available" }).eq("id", bookId);
-    }
-
-    await supabase.from("reservation_history").insert({
-      reservation_id: reservationId,
-      member_id: currentUser?.id,
-      book_id: bookId,
-      type: compartment ? 'kiosk' : 'library',
-      status: 'cancelled',
-      cancelled_at: now,
-      cancellation_reason: 'Member cancelled',
-    });
-  }, [currentUser]);
+    // Kiosk reservations always release book back to kiosk
+    await supabase.from("books").update({ status: "kiosk" }).eq("id", bookId);
+    setHasActiveReservation(false);
+  }, []);
 
   const startTimer = useCallback(() => {
+
     if (timerInterval) clearInterval(timerInterval);
     const interval = setInterval(() => {
       setReserveSeconds(prev => {
@@ -232,7 +222,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   return (
     <LibraryContext.Provider value={{
       currentUser, books, reserveSeconds, hasActiveReservation, reservedBookTitle,
-      login, logout, searchBooks, getMyBooks, reserveBook, cancelReservation, refreshMember,
+      login, logout, searchBooks, getMyBooks, reserveBook, cancelReservation, hasExistingActiveReservation, refreshMember,
       startTimer, stopTimer, loading,
     }}>
       {children}

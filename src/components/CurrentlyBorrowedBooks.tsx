@@ -39,11 +39,40 @@ export default function CurrentlyBorrowedBooks() {
     } else {
       // If this return clears an overdue book, record on restriction_history (keep member restricted)
       if (wasOverdue) {
-        await supabase.from("restriction_history")
-          .update({ return_date: nowIso, days_overdue: daysOverdue, reason: "Overdue Return" })
+        // Update existing active restriction with return info & switch reason to late-return fine
+        const { data: existing } = await supabase
+          .from("restriction_history")
+          .select("id")
           .eq("member_id", record.member_id)
           .eq("book_id", record.book_id)
-          .eq("status", "active");
+          .eq("status", "active")
+          .maybeSingle();
+        if (existing) {
+          await supabase.from("restriction_history")
+            .update({ return_date: nowIso, days_overdue: daysOverdue, reason: "Book returned after due date" })
+            .eq("id", existing.id);
+        } else {
+          // Late return without prior detection — create a fine restriction
+          const { data: m } = await supabase.from("members").select("uni_id, name").eq("id", record.member_id).maybeSingle();
+          await supabase.from("restriction_history").insert({
+            member_id: record.member_id,
+            uni_id: m?.uni_id ?? null,
+            member_name: m?.name ?? null,
+            book_id: record.book_id,
+            book_title: record.book_title,
+            reason: "Book returned after due date",
+            due_date: record.due_date,
+            return_date: nowIso,
+            days_overdue: daysOverdue,
+            status: "active",
+            restricted_at: nowIso,
+          });
+        }
+        await supabase.from("members").update({
+          status: "restricted",
+          restriction_reason: "Book returned after due date",
+          restricted_at: nowIso,
+        }).eq("id", record.member_id);
       }
       toast.success(`"${record.book_title}" marked as returned`);
       await fetchRecords();
