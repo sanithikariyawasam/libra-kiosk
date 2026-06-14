@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index.tsx";
 import Member from "./pages/Member.tsx";
-import MyReservations from "./pages/MyReservations.tsx";
+
 import NotFound from "./pages/NotFound.tsx";
 import Admin from "./pages/Admin.tsx";
 
@@ -20,7 +20,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/member" element={<Member />} />
-          <Route path="/member/reservations" element={<MyReservations />} />
+          
           <Route path="/admin" element={<Admin />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
