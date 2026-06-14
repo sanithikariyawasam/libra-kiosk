@@ -222,7 +222,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   return (
     <LibraryContext.Provider value={{
       currentUser, books, reserveSeconds, hasActiveReservation, reservedBookTitle,
-      login, logout, searchBooks, getMyBooks, reserveBook, cancelReservation, refreshMember,
+      login, logout, searchBooks, getMyBooks, reserveBook, cancelReservation, hasExistingActiveReservation, refreshMember,
       startTimer, stopTimer, loading,
     }}>
       {children}
