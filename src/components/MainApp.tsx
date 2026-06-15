@@ -218,9 +218,7 @@ export default function MainApp() {
                             Reserve
                           </button>
                         ) : (
-                          <button disabled className="bg-border text-muted-foreground rounded-lg px-4 py-1.5 text-[11px] font-medium cursor-not-allowed font-sans">
-                            Unavailable
-                          </button>
+                          null
                         )}
                       </TableCell>
                     </TableRow>
