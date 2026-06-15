@@ -69,10 +69,15 @@ export default function ActiveReservation({ refreshKey, onChange }: { refreshKey
   const totalSeconds = Math.floor((new Date(row.expires_at).getTime() - now) / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  const display = totalSeconds <= 0 ? "Expired" : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} time left`;
+  const display = totalSeconds <= 0 ? "00:00" : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
   const doCancel = async () => {
-    await cancelReservation(row.id, row.book_id, row.compartment);
+    const ok = await cancelReservation(row.id, row.book_id, row.compartment);
+    if (!ok) {
+      toast.error("Could not cancel reservation. Please try again.");
+      setConfirmOpen(false);
+      return;
+    }
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -100,7 +105,6 @@ export default function ActiveReservation({ refreshKey, onChange }: { refreshKey
           <div className="font-serif text-2xl font-black text-blue-700">{row.compartment ?? "—"}</div>
         </div>
         <div>
-          <div className="text-[10px] uppercase tracking-wider font-mono text-blue-700 mb-1">Time Remaining</div>
           <div className="font-mono text-2xl font-bold text-blue-700">{display}</div>
         </div>
       </div>
