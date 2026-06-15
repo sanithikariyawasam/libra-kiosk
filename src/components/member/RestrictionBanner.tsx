@@ -45,13 +45,13 @@ export function buildRestrictionMessage(r: ActiveRestriction): { banner: string;
   const due = formatDate(r.due_date);
   if (r.reason === "Book returned after due date") {
     return {
-      banner: `⚠️ Account Restricted — You have an outstanding fine for "${title}". Please visit the library to pay and clear your restriction.`,
+      banner: `🪙 You have an outstanding fine for "${title}". Please visit the library to pay and clear your restriction.`,
       popup: `Your account is restricted because "${title}" was returned late. Please visit the library to pay the outstanding fine to remove this restriction.`,
     };
   }
   // default = "Book not returned by due date"
   return {
-    banner: `⚠️ Account Restricted — "${title}" is overdue since ${due}. Please return it immediately.`,
+    banner: `📚 "${title}" is overdue since ${due}. Please return it immediately.`,
     popup: `Your account is restricted because "${title}" has not been returned and was due on ${due}. Please return it to the library or kiosk to remove this restriction.`,
   };
 }
@@ -61,8 +61,18 @@ export default function RestrictionBanner() {
   if (!r) return null;
   const { banner } = buildRestrictionMessage(r);
   return (
-    <div className="border-2 border-destructive bg-destructive/10 rounded-[14px] p-4 mb-4">
-      <p className="text-sm text-destructive font-medium">{banner}</p>
+  <div className="border-2 border-orange-500 bg-orange-50 rounded-2xl p-8 mb-8 flex items-center gap-6">
+    <div className="text-6xl">🚫</div>
+
+    <div>
+      <h2 className="text-3xl font-bold text-orange-700 mb-2">
+        Account Restricted
+      </h2>
+
+      <p className="text-xl font-semibold text-orange-600">
+        {banner}
+      </p>
     </div>
-  );
+  </div>
+);
 }
