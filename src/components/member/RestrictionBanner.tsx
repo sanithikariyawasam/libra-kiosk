@@ -43,7 +43,7 @@ function formatDate(d: string | null) {
 export function buildRestrictionMessage(r: ActiveRestriction): { banner: string; popup: string } {
   const title = r.book_title ?? "a book";
   const due = formatDate(r.due_date);
-  if (r.reason === "Book returned after due date") {
+  if (r.reason === "Fine pending") {
     return {
       banner: `🪙 You have an outstanding fine for "${title}". Please visit the library to pay and clear your restriction.`,
       popup: `Your account is restricted because "${title}" was returned late. Please visit the library to pay the outstanding fine to remove this restriction.`,
