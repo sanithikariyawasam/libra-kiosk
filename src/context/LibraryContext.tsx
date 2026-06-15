@@ -46,7 +46,7 @@ interface LibraryContextType {
   searchBooks: (query: string, type: "title" | "author") => Book[];
   getMyBooks: () => Book[];
   reserveBook: (bookId: string, compartment: string) => Promise<{ expiresAt: Date; reservationId: string } | null>;
-  cancelReservation: (reservationId: string, bookId: string, compartment: string | null) => Promise<void>;
+  cancelReservation: (reservationId: string, bookId: string, compartment: string | null) => Promise<boolean>;
   hasExistingActiveReservation: () => Promise<boolean>;
   refreshMember: () => Promise<void>;
   startTimer: () => void;
