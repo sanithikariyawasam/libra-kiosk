@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase-external";
 import { useLibrary } from "@/context/LibraryContext";
 import { toast } from "sonner";
