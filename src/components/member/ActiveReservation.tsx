@@ -101,7 +101,7 @@ export default function ActiveReservation({ refreshKey, onChange }: { refreshKey
         </div>
         <div>
           <div className="text-[10px] uppercase tracking-wider font-mono text-blue-700 mb-1">Time Remaining</div>
-          <div className="font-mono text-2xl font-bold text-blue-700">{fmt(remaining)}</div>
+          <div className="font-mono text-2xl font-bold text-blue-700">{display}</div>
         </div>
       </div>
       <button onClick={() => setConfirmOpen(true)}
