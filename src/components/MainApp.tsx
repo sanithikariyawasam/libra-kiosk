@@ -77,7 +77,7 @@ export default function MainApp() {
     setSearchResults(null);
     setRefreshKey(k => k + 1);
 
-    toast.success(`✅ Reserved! Collect from LibraKiosk · Compartment ${modalCompartment} within 1 hour.`);
+    toast.success(`Reserved! Collect from LibraKiosk · Compartment ${modalCompartment} within 1 hour.`);
   };
 
   const modalBook = modalBookId ? books.find(b => b.id === modalBookId) : null;
