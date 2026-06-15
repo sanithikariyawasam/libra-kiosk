@@ -186,7 +186,9 @@ export default function MainApp() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {books.map((book, i) => {
+               {[...books]
+                          .sort((a, b) => a.id.localeCompare(b.id))
+                          .map((book, i) => {
                   const statusColors: Record<string, string> = {
                     available: "text-accent bg-accent/10",
                     kiosk: "text-blue-600 bg-blue-50",
