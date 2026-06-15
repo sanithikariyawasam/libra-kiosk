@@ -35,8 +35,8 @@ export default function KioskStatusGrid({ onReserve, refreshKey }: Props) {
     return () => { supabase.removeChannel(channel); };
   }, []);
   
-      const availableSlots = slots.filter(
-      s => !s.book_id && !s.book_name
+  const availableSlots = slots.filter(
+      s => !(!!s.book_id && !!s.book_name)
       ).length;
   return (
     <div className="mt-8">
