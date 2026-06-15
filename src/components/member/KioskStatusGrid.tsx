@@ -38,6 +38,10 @@ export default function KioskStatusGrid({ onReserve, refreshKey }: Props) {
   const availableSlots = slots.filter(
       s => !(!!s.book_id && !!s.book_name)
       ).length;
+
+  console.log("Slots:", slots);
+  console.log("Available Slots:", availableSlots);
+  
   return (
     <div className="mt-8">
 
