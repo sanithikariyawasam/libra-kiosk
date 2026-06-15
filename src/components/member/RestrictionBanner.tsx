@@ -24,6 +24,9 @@ export function useActiveRestriction(): ActiveRestriction | null {
         .order("restricted_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      console.log("Restriction row:", data);
+      
       if (cancelled) return;
       if (data) setR(data as ActiveRestriction);
       else setR({ reason: currentUser.restriction_reason ?? "Account restricted", book_title: null, due_date: null });
