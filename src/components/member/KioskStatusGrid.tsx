@@ -3,7 +3,6 @@ import { supabase } from "@/lib/supabase-external";
 import { RefreshCw } from "lucide-react";
 
 type Slot = {
-  id: string;
   compartment: string;
   book_id: string | null;
   book_name: string | null;
@@ -20,7 +19,7 @@ export default function KioskStatusGrid({ onReserve, refreshKey }: Props) {
 
   const fetchSlots = async () => {
     setLoading(true);
-    const { data } = await supabase.from("kiosk").select("id, compartment, book_id, book_name").order("compartment");
+    const { data } = await supabase.from("kiosk").select("compartment, book_id, book_name").order("compartment");
     setSlots((data as Slot[]) ?? []);
     setLoading(false);
   };
@@ -77,7 +76,7 @@ export default function KioskStatusGrid({ onReserve, refreshKey }: Props) {
           {slots.map((s) => {
             const occupied = !!s.book_id && !!s.book_name;
             return (
-              <div key={s.id}
+              <div key={s.compartment}
                 className={`border-2 rounded-[14px] p-4 ${occupied ? "border-accent bg-accent/5" : "border-border bg-muted/20 opacity-70"}`}>
                 <div className="flex items-baseline justify-between mb-2">
                   <span className={`font-serif text-2xl font-black ${occupied ? "text-accent" : "text-muted-foreground"}`}>{s.compartment}</span>
