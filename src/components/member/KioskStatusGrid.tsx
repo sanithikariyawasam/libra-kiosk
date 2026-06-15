@@ -34,9 +34,29 @@ export default function KioskStatusGrid({ onReserve, refreshKey }: Props) {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
-
+  
+      const availableSlots = slots.filter(
+      s => !s.book_id && !s.book_name
+      ).length;
   return (
     <div className="mt-8">
+
+      <div className="mb-4 border rounded-lg p-3 bg-muted/20">
+        <div className="font-mono text-[10px] uppercase tracking-[2px] text-muted-foreground mb-1">
+          Return Availability
+        </div>
+
+        {availableSlots > 0 ? (
+          <div className="text-sm text-green-600 font-medium">
+            🟢 Kiosk Available for returns ({availableSlots} slot{availableSlots > 1 ? "s" : ""} remaining)
+          </div>
+    ) : (
+          <div className="text-sm text-red-600 font-medium">
+            🔴 Kiosk Full — Please return books at the library counter.
+          </div>
+  )}
+</div>
+      
       <div className="flex items-center justify-between mb-3">
         <div className="font-mono text-[10px] text-muted-foreground tracking-[2px] uppercase">
           Kiosk Status
