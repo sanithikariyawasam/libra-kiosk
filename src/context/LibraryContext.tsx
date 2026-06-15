@@ -195,7 +195,7 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
   const cancelReservation = useCallback(async (reservationId: string, bookId: string, _compartment: string | null): Promise<boolean> => {
     const now = new Date().toISOString();
     const { error: resErr } = await supabase.from("reservations").update({
-      status: 'cancelled', cancelled_at: now, cancellation_reason: 'Member cancelled',
+      status: 'cancelled', cancelled_at: now, 
     }).eq("id", reservationId);
     if (resErr) {
       console.error("cancelReservation update failed:", resErr);
