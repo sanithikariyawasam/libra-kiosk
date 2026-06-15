@@ -61,7 +61,7 @@ export default function RestrictionBanner() {
   if (!r) return null;
   const { banner } = buildRestrictionMessage(r);
   return (
- return (
+
   <div className="border border-orange-500 bg-orange-50 rounded-lg p-3 mb-4 flex items-center gap-3">
     <div className="text-3xl">🚫</div>
 
