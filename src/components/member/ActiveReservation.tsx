@@ -65,13 +65,22 @@ export default function ActiveReservation({ refreshKey, onChange }: { refreshKey
   }, [now, row, expired, onChange]);
 
   if (!row) return null;
-  const remaining = new Date(row.expires_at).getTime() - now;
+
+  const totalSeconds = Math.floor((new Date(row.expires_at).getTime() - now) / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const display = totalSeconds <= 0 ? "Expired" : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} time left`;
 
   const doCancel = async () => {
     await cancelReservation(row.id, row.book_id, row.compartment);
-    toast.success("✅ Reservation cancelled");
-    setConfirmOpen(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     setRow(null);
+    setConfirmOpen(false);
+    await fetchActive();
+    toast.success("Reservation cancelled");
     onChange();
   };
 
