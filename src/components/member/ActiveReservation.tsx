@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/lib/supabase-external";
 import { useLibrary } from "@/context/LibraryContext";
 import { toast } from "sonner";
@@ -12,13 +12,6 @@ type ActiveRow = {
   book_title: string;
 };
 
-function fmt(ms: number) {
-  if (ms <= 0) return "00:00";
-  const totalSec = Math.floor(ms / 1000);
-  const mm = Math.floor(totalSec / 60).toString().padStart(2, "0");
-  const ss = (totalSec % 60).toString().padStart(2, "0");
-  return `${mm}:${ss}`;
-}
 
 export default function ActiveReservation({ refreshKey, onChange }: { refreshKey: number; onChange: () => void }) {
   const { currentUser, cancelReservation } = useLibrary();
@@ -26,10 +19,13 @@ export default function ActiveReservation({ refreshKey, onChange }: { refreshKey
   const [now, setNow] = useState(Date.now());
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [expired, setExpired] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
+    timerRef.current = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, []);
 
   const fetchActive = async () => {
@@ -69,13 +65,22 @@ export default function ActiveReservation({ refreshKey, onChange }: { refreshKey
   }, [now, row, expired, onChange]);
 
   if (!row) return null;
-  const remaining = new Date(row.expires_at).getTime() - now;
+
+  const totalSeconds = Math.floor((new Date(row.expires_at).getTime() - now) / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const display = totalSeconds <= 0 ? "Expired" : `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} time left`;
 
   const doCancel = async () => {
     await cancelReservation(row.id, row.book_id, row.compartment);
-    toast.success("✅ Reservation cancelled");
-    setConfirmOpen(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     setRow(null);
+    setConfirmOpen(false);
+    await fetchActive();
+    toast.success("Reservation cancelled");
     onChange();
   };
 
@@ -96,7 +101,7 @@ export default function ActiveReservation({ refreshKey, onChange }: { refreshKey
         </div>
         <div>
           <div className="text-[10px] uppercase tracking-wider font-mono text-blue-700 mb-1">Time Remaining</div>
-          <div className="font-mono text-2xl font-bold text-blue-700">{fmt(remaining)}</div>
+          <div className="font-mono text-2xl font-bold text-blue-700">{display}</div>
         </div>
       </div>
       <button onClick={() => setConfirmOpen(true)}
