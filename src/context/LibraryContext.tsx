@@ -192,15 +192,30 @@ export function LibraryProvider({ children }: { children: ReactNode }) {
     return { expiresAt, reservationId: insertData?.id ?? '' };
   }, [books, currentUser]);
 
-  const cancelReservation = useCallback(async (reservationId: string, bookId: string, _compartment: string | null) => {
+  const cancelReservation = useCallback(async (reservationId: string, bookId: string, _compartment: string | null): Promise<boolean> => {
     const now = new Date().toISOString();
-    await supabase.from("reservations").update({
+    const { error: resErr } = await supabase.from("reservations").update({
       status: 'cancelled', cancelled_at: now, cancellation_reason: 'Member cancelled',
     }).eq("id", reservationId);
+    if (resErr) {
+      console.error("cancelReservation update failed:", resErr);
+      return false;
+    }
+    // Verify the row actually moved out of 'active'
+    const { data: verify } = await supabase
+      .from("reservations").select("status").eq("id", reservationId).maybeSingle();
+    if (verify?.status === 'active') {
+      console.error("cancelReservation: row still active after update (likely RLS UPDATE policy missing)");
+      return false;
+    }
     // Kiosk reservations always release book back to kiosk
     await supabase.from("books").update({ status: "kiosk" }).eq("id", bookId);
+    setBooks(prev => prev.map(b => b.id === bookId ? { ...b, status: "kiosk" as const } : b));
     setHasActiveReservation(false);
-  }, []);
+    setReservedBookTitle("");
+    if (timerInterval) { clearInterval(timerInterval); setTimerInterval(null); }
+    return true;
+  }, [timerInterval]);
 
   const startTimer = useCallback(() => {
 
