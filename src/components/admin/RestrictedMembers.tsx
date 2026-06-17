@@ -37,7 +37,7 @@ export default function RestrictedMembers() {
     const { data } = await supabase
       .from("restriction_history")
       .select("id, member_id, uni_id, member_name, book_id, book_title, reason, due_date, return_date, days_overdue, status, restricted_at")
-      .eq("status", "active")
+      
       .order("restricted_at", { ascending: false });
     setRows((data as Restriction[]) ?? []);
     setLoading(false);
