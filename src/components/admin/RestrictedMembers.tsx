@@ -124,6 +124,10 @@ export default function RestrictedMembers() {
                   <TableCell className="font-serif">{r.book?.title ?? '—'}</TableCell>
                   <TableCell className="font-mono text-xs text-muted-foreground">{r.reason ?? '—'}</TableCell>
                   <TableCell className="text-xs font-mono">{formatDate(r.due_date)}</TableCell>
+                  <TableCell className="text-sm font-medium text-muted-foreground"> {
+                    r.reason ?? '—'}
+                  </TableCell>
+
                   <TableCell className="text-xs font-mono">
                     {r.return_date ? formatDate(r.return_date) : <span className="text-destructive">Not returned</span>}
                   </TableCell>
