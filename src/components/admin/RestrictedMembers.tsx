@@ -71,9 +71,15 @@ export default function RestrictedMembers() {
   const filtered = rows.filter(r => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
-    return (r.uni_id ?? '').toLowerCase().includes(q)
-      || (r.member_name ?? '').toLowerCase().includes(q)
-      || (r.book_title ?? '').toLowerCase().includes(q);
+    const studentId = r.members?.uni_id ?? '';
+    const studentName = r.members?.name ?? '';
+    const bookTitle = r.books?.title ?? '';
+    const restrictionReason = r.reason ?? '';
+
+    return studentId.toLowerCase().includes(q)
+      || studentName.toLowerCase().includes(q)
+      || bookTitle.toLowerCase().includes(q)
+      || restrictionReason.toLowerCase().includes(q);
   });
 
   return (
@@ -113,10 +119,10 @@ export default function RestrictedMembers() {
             <TableBody>
               {filtered.map(r => (
                 <TableRow key={r.id}>
-                  <TableCell className="font-mono text-xs">{r.uni_id ?? '—'}</TableCell>
-                  <TableCell className="font-medium">{r.member_name ?? '—'}</TableCell>
-                  <TableCell className="font-serif">{r.book_title ?? '—'}</TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">{r.book_id ?? '—'}</TableCell>
+                  <TableCell className="font-mono text-xs">{r.members?.uni_id ?? '—'}</TableCell>
+                  <TableCell className="font-medium">{r.member?.name ?? '—'}</TableCell>
+                  <TableCell className="font-serif">{r.book?.title ?? '—'}</TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{r.reason ?? '—'}</TableCell>
                   <TableCell className="text-xs font-mono">{formatDate(r.due_date)}</TableCell>
                   <TableCell className="text-xs font-mono">
                     {r.return_date ? formatDate(r.return_date) : <span className="text-destructive">Not returned</span>}
